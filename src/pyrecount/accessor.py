@@ -36,8 +36,8 @@ class Project():
         self.metadata: pl.DataFrame = metadata
         self.dbase: str = dbase
         self.dtype: Dtype = dtype
-        self.annotation: Annotation = annotation
         self.cache_location: str = path.join(cache_location, self.dtype.value)
+        self.annotation: Annotation = annotation
         self.jxn_format: Optional[str] = jxn_format
         self.root_url: str = root_url
 
