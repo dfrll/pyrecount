@@ -4,6 +4,8 @@ from itertools import product
 from .models import Dtype, Annotation, Tags
 from typing import Union, Optional, List, Dict
 
+from pprint import pprint
+
 class ProjectLocator:
     def __init__(
             self,
@@ -17,6 +19,8 @@ class ProjectLocator:
             jxn_format: Optional[str] = None
     ):
 
+        # TODO: raise valueError for when samples is None and Dtype is BW
+
         self.root_organism_url: str = root_organism_url
         self.data_sources: Dict[str, str] = data_sources
         self.dbase: str = dbase
@@ -26,14 +30,13 @@ class ProjectLocator:
         self.sample: List[str] = [sample] if isinstance(sample, str) else sample
         self.jxn_format: Optional[str] = jxn_format
 
-
     @property
     def _extensions(self) -> List[str]:
         match self.dtype:
             case Dtype.METADATA:
                 return ['MD.gz']
             case Dtype.GENE | Dtype.EXON:
-                return ['.gz']
+                return ['gtf.gz']
             case Dtype.JXN:
                 return ['MM.gz', 'RR.gz', 'ID.gz']
             case Dtype.BW:
@@ -65,28 +68,54 @@ class ProjectLocator:
     @property
     def fpaths(self) -> List[str]:
         paths = list()
-        base = path.join(self.root_organism_url, self.data_sources[self.dbase], self.dtype.value)
+        file_names = list()
+        base = path.join(self.root_organism_url)
 
-        for project_id, project_index in self._project_indices.items():
+        match self.dtype:
+            case Dtype.METADATA:
+                for project_id, project_index in self._project_indices.items():
+                    project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value, project_index, project_id)
+                    tag_extension_prod = list(product(self._tags, self._extensions))
 
-            project_base = path.join(base, project_index, project_id)
-            tag_extension_prod = product(self._tags, self._extensions)
+                    file_names.extend([f'{self.dbase}.{tag}.{project_id}.{ext}' for tag, ext in tag_extension_prod])
 
-            match self.dtype:
-                case Dtype.METADATA:
-                    file_names = [f'{self.dbase}.{tag}.{project_id}.{ext}' for tag, ext in tag_extension_prod]
-                case Dtype.JXN:
-                    file_names = [f'{self.dbase}.{tag}.{project_id}.{self.jxn_format.upper()}.{ext}' for tag, ext in tag_extension_prod]
-                case Dtype.BW:
+                paths.extend([path.join(project_base, fn) for fn in file_names])
+
+            case Dtype.JXN:
+                for project_id, project_index in self._project_indices.items():
+                    project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value, project_index, project_id)
+                    tag_extension_prod = list(product(self._tags, self._extensions))
+
+                    file_names.extend([f'{self.dbase}.{tag}.{project_id}.{self.jxn_format.upper()}.{ext}' for tag, ext in tag_extension_prod])
+
+                paths.extend([path.join(project_base, fn) for fn in file_names])
+
+            case Dtype.BW:
+                for project_id, project_index in self._project_indices.items():
+                    project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value, project_index, project_id)
+                    tag_extension_prod = list(product(self._tags, self._extensions))
+
                     file_names = list()
                     for sample_id, sample_index in self._sample_indices.items():
                         file_names.extend(
                             [f'{sample_index}/{self.dbase}.{tag}.{project_id}_{sample_id}.{ext}' for tag, ext in tag_extension_prod]
                         )
-                case _:
-                    raise ValueError(f'Invalid dtype: {self.dtype}')
 
-            paths.extend([path.join(project_base, fn) for fn in file_names])
+                paths.extend([path.join(project_base, fn) for fn in file_names])
+
+            case Dtype.GENE:
+                organism = path.basename(base)
+                base = path.join(base, 'annotations', self.dtype.value)
+
+                file_names.extend([f'{organism}.{self.dtype.value}.{self.annotation.value}.{ext}' for ext in self._extensions])
+
+                paths.extend([path.join(base, fn) for fn in file_names])
+
+            case _:
+                raise ValueError(f'Invalid dtype: {self.dtype}')
+
+        print('paths')
+        print(paths)
 
         return paths
 

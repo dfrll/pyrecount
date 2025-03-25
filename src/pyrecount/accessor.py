@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+import re
 import logging
 from os import path
 import polars as pl
@@ -21,7 +22,6 @@ class Project():
             self,
             metadata: pl.DataFrame,
             dbase: str, 
-            # TODO: Union[Dtype, List[Dtype]]: allow multiple dtypes
             dtype: Dtype,
             cache_location: Optional[str],
             # TODO: handle annotation argument
@@ -32,6 +32,8 @@ class Project():
 
         if dtype == Dtype.JXN and jxn_format is None:
             raise ValueError(f'Parameter `jxn_format` is required when `dtype` is {Dtype.JXN}.')
+        if dtype == Dtype.GENE and annotation is None:
+            raise ValueError(f'Parameter `annotations` is required when `dtype` is {Dtype.GENE}.')
 
         self.metadata: pl.DataFrame = metadata
         self.dbase: str = dbase
@@ -49,15 +51,26 @@ class Project():
             case Dtype.METADATA:
                 return self._metadata(cache_resources)
             case Dtype.JXN:
+                # TODO: sending cache not necessary
                 return self._jxn(cache, cache_resources)
+            case Dtype.BW:
+                # TODO: sending cache not necessary
+                # XXX: consider exposing BigWig URLs rather than caching
+                return self._bw(cache, cache_resources)
+            case Dtype.GENE:
+                return self._gene(cache_resources)
             case _:
                 raise ValueError(f'Invalid dtype: {self.dtype}')
 
     def cache(self):
+
         organism = self.metadata['organism'].unique()
         endpoints = EndpointConnector(root_url=self.root_url, organism=organism.first())
 
         self.project = self.metadata['project'].unique().to_list()
+
+        print(self.project)
+
         sample = self.metadata['external_id'].unique().to_list()
 
         project_metadata = ProjectLocator(
@@ -72,10 +85,18 @@ class Project():
             jxn_format = self.jxn_format
         )
 
-        QCache(
+        qcache = QCache(
             fpaths=project_metadata.fpaths,
             cache_location=self.cache_location
-        ).biocache()
+        )
+
+        match self.dtype:
+            case Dtype.METADATA | Dtype.JXN | Dtype.BW:
+                qcache.biocache()
+            case Dtype.GENE:
+                qcache.biocache_serial()
+            case _:
+                raise ValueError(f'Invalid dtype: {self.dtype}')
 
     def _get_jxn_ids(self, cache: BiocFileCacheType) -> List:
         cache_items = {item.rname: item.rpath for item in cache.list_resources()}
@@ -88,8 +109,8 @@ class Project():
         return mm_dataframe.rename(dict(zip(mm_dataframe.columns, ids)))
 
     def _metadata(self, cache_resources: List[models.Resource]):
-        join_cols = ['rail_id', 'external_id', 'study']
 
+        join_cols = ['rail_id', 'external_id', 'study']
         cache_dataframe: pl.DataFrame = self.metadata
 
         for resource in cache_resources:
@@ -99,10 +120,12 @@ class Project():
             current_dataframe = pl.read_csv(resource.rpath, separator='\t')
 
             try:
+                # use suffix to avoid name clashes in column names
                 cache_dataframe = cache_dataframe.join(current_dataframe, on=join_cols, suffix=resource.rid)
             except Exception as e:
-                logging.error(f'Error joining resource: {e}')
+                logging.error(f'Error joining resource {resource.rid} to metadata: {e}')
 
+        # drop duplicate columns
         cache_dataframe = cache_dataframe.drop([col for col in cache_dataframe.columns if 'BFC' in col])
 
         return replace_organism(cache_dataframe).unique()
@@ -110,34 +133,66 @@ class Project():
     def _jxn(self, cache: BiocFileCacheType, cache_resources: List[models.Resource]) -> Tuple[pl.DataFrame, pl.DataFrame]:
         join_cols = ['rail_id']
 
-        # XXX: decide mapping from sample id to jxn db entry
-        # only set here to avoid schema conflict in downstream join
-        #cache_dataframe: pl.DataFrame = None
-
         mm_dataframe = None
         for resource in cache_resources:
             if self.dbase not in resource.rname:
                 continue
+            # identifiers skipped until call to self._id_matrix_market(), self._get_jxn_ids().
             if 'ID' in resource.rname:
-                continue
+                    continue
 
             if 'MM' in resource.rname:
+                # the samples in the MM jxn table are not in the same order as the metadata.
+                # this is the reason for calling self._get_jxn_ids().
                 mm_array = mmread(resource.rpath).toarray()
                 mm_dataframe = self._id_matrix_market(pl.from_numpy(mm_array), cache)
             else:
-                # The samples in the MM jxn table are not in the same order as the metadata
-                # XXX: decide mapping from sample id to jxn db entry
-                #ids = self._get_jxn_ids(cache)
-                # skip copy of metadata table
+                # skip copy of metadata table.
+                # alternatively, assert (self.metadata == blah)
                 current_dataframe = pl.read_csv(resource.rpath, separator='\t')
                 if all(col in current_dataframe.columns for col in join_cols):
                     continue
                 else:
-                    # XXX: decide mapping from sample id to jxn db entry
-                    #cache_dataframe = pl.concat([pl.DataFrame(ids), current_dataframe], how='horizontal')
                     cache_dataframe = current_dataframe
 
+        # possible to concatenate instead.
+        # return pl.concat([cache_dataframe, mm_dataframe])
         return mm_dataframe, cache_dataframe
+
+    def _bw(self, cache: BiocFileCacheType, cache_resources: List[models.Resource]) -> Tuple[pl.DataFrame, pl.DataFrame]:
+        # XXX: consider exposing BigWig URLs rather than caching
+        for resource in cache_resources:
+            if self.dbase not in resource.rname:
+                continue
+
+            #bw: bigWigFile = pyBigWig.open(resource.rpath)
+
+        return pl.DataFrame()
+
+    def _gene(self, cache_resources: List[models.Resource]) -> pl.DataFrame:
+        for resource in cache_resources:
+            if self.annotation.value not in resource.rname:
+                continue
+
+            current_dataframe = pl.read_csv(
+                resource.rpath,
+                comment_prefix='#',
+                separator='\t',
+                new_columns=['seqname', 'source', 'feature', 'start', 'end',
+                             'score', 'strand', 'frame', 'attribute']
+            )
+
+            fields = ['gene_id', 'transcript_id', 'exon_number', 'gene_name', 'gene_source',
+                      'gene_biotype', 'transcript_name', 'transcript_source',
+                      'transcript_biotype', 'protein_id', 'exon_id', 'tag'
+            ]
+
+            return current_dataframe.with_columns([
+                    current_dataframe['attribute'].map_elements(
+                        lambda x: re.findall(rf'{field} "([^"]*)"', x)[0] if rf'{field} "' in x else '',
+                        return_dtype=pl.Utf8  
+                    ).alias(field) for field in fields]
+            )
 
 class Metadata():
     def __init__(
@@ -158,7 +213,7 @@ class Metadata():
             QCache(
                 fpaths=metadata.fpaths,
                 cache_location=self.cache_location
-            # not spawning threads for so few resources
+            # not spawning threads for so few data sources
             ).biocache_serial()
 
         except Exception as e:
