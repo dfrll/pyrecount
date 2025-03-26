@@ -3,38 +3,41 @@ import polars as pl
 from pyrecount.models import Dtype, Annotation
 from pyrecount.accessor import Metadata, Project
 
-# TODO: extract gene and exon counts
+# TODO: extract counts data
+# TODO: testing dbs other than sra
+# TODO: handle BigWig
 
 cache_location = 'myproject'
 organism = 'human'
 dbase = 'sra'
 
 # recount3 metadata
-metadata = Metadata(organism=organism, cache_location=cache_location)
-metadata.cache()
+recount_metadata = Metadata(organism=organism, cache_location=cache_location)
+recount_metadata.cache()
 
 # load dataframe
-meta_dataframe = metadata.load()
+recount_meta_dataframe = recount_metadata.load()
 
-print(meta_dataframe)
+print(recount_meta_dataframe)
 
 # number of samples per project
-n_sample_project = meta_dataframe.group_by('project').len()
+n_sample_project = recount_meta_dataframe.group_by('project').len()
 
 print(n_sample_project)
 
-# subset to avoid caching all recount3 data
-data_of_interest = meta_dataframe.filter(
-    (pl.col('project').is_in(['SRP009615', 'ERP110066']))
+# subset
+project_dataframe = recount_meta_dataframe.filter(
+    (pl.col('project').is_in(['SRP009615']))
 )
 
-print(data_of_interest)
+print(project_dataframe)
+
 
 # project metadata
 dtype = Dtype.METADATA
 
 project_metadata = Project(
-    metadata = data_of_interest,
+    metadata = project_dataframe,
     dbase = dbase,
     dtype = dtype,
     cache_location = cache_location
@@ -45,44 +48,31 @@ project_meta_dataframe = project_metadata.load()
 
 print(project_meta_dataframe)
 
+
 # project junctions
 dtype = Dtype.JXN
 
-jxn = Project(
-    metadata = data_of_interest,
+project_jxn = Project(
+    metadata = project_dataframe,
     dbase = dbase,
     dtype = dtype,
     cache_location = cache_location,
     jxn_format = 'ALL'
 )
 
-jxn.cache()
-jxn_mm_dataframe, jxn_dataframe = jxn.load()
+project_jxn.cache()
+jxn_mm_dataframe, jxn_dataframe = project_jxn.load()
 
 print(jxn_mm_dataframe)
 print(jxn_dataframe)
 
-dtype = Dtype.BW
 
-bw = Project(
-    metadata = data_of_interest,
-    dbase = dbase,
-    dtype = dtype,
-    cache_location = cache_location,
-)
-
-bw.cache()
-df = bw.load()
-
-print(df)
-
+# project gene annotation
 dtype = Dtype.GENE
 annotation = Annotation.GENCODE_V29
 
-print(dtype)
-
 gene = Project(
-    metadata = data_of_interest,
+    metadata = project_dataframe,
     dbase = dbase,
     dtype = dtype,
     cache_location = cache_location,
@@ -90,6 +80,6 @@ gene = Project(
 )
 
 gene.cache()
-df = gene.load()
+gene_dataframe = gene.load()
 
-print(df)
+print(gene_dataframe)
