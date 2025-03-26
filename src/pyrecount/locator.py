@@ -114,9 +114,6 @@ class ProjectLocator:
             case _:
                 raise ValueError(f'Invalid dtype: {self.dtype}')
 
-        print('paths')
-        print(paths)
-
         return paths
 
 class MetadataLocator():

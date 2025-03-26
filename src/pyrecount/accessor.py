@@ -55,7 +55,7 @@ class Project():
                 return self._jxn(cache, cache_resources)
             case Dtype.BW:
                 # TODO: sending cache not necessary
-                # XXX: consider exposing BigWig URLs rather than caching
+                # XXX: expose BigWig URLs rather than caching
                 return self._bw(cache, cache_resources)
             case Dtype.GENE:
                 return self._gene(cache_resources)
@@ -68,9 +68,6 @@ class Project():
         endpoints = EndpointConnector(root_url=self.root_url, organism=organism.first())
 
         self.project = self.metadata['project'].unique().to_list()
-
-        print(self.project)
-
         sample = self.metadata['external_id'].unique().to_list()
 
         project_metadata = ProjectLocator(
@@ -94,6 +91,7 @@ class Project():
             case Dtype.METADATA | Dtype.JXN | Dtype.BW:
                 qcache.biocache()
             case Dtype.GENE:
+                # not spawning threads for so few data sources.
                 qcache.biocache_serial()
             case _:
                 raise ValueError(f'Invalid dtype: {self.dtype}')
@@ -160,7 +158,7 @@ class Project():
         return mm_dataframe, cache_dataframe
 
     def _bw(self, cache: BiocFileCacheType, cache_resources: List[models.Resource]) -> Tuple[pl.DataFrame, pl.DataFrame]:
-        # XXX: consider exposing BigWig URLs rather than caching
+        # XXX: expose BigWig URLs rather than caching
         for resource in cache_resources:
             if self.dbase not in resource.rname:
                 continue
@@ -213,7 +211,7 @@ class Metadata():
             QCache(
                 fpaths=metadata.fpaths,
                 cache_location=self.cache_location
-            # not spawning threads for so few data sources
+            # not spawning threads for so few data sources.
             ).biocache_serial()
 
         except Exception as e:

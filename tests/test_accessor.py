@@ -8,7 +8,7 @@ import polars as pl
 outpath = path.join('output', path.dirname(__file__))
 
 @pytest.mark.parametrize('organism, project, expected_shape', [
-    ('human', ['SRP009615', 'ERP110066'], 0)
+    ('human', ['SRP009615', 'ERP110066'], (1024, 173))
 ])
 def test_project_metadata_accessor(organism, project, expected_shape):
     # XXX: mock dataframe instead
@@ -31,12 +31,8 @@ def test_project_metadata_accessor(organism, project, expected_shape):
 
     project.cache()
     meta_dataframe = project.load()
-
-    print(meta_dataframe)
-
-    #assert project_meta_dataframe.shape == expected_shape
-
-
+    
+    assert meta_dataframe.shape == expected_shape
 
 #@pytest.mark.parametrize('organism, project, expected_shape', [
     #('human', 'SRP009615', 0)
