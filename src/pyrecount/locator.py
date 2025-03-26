@@ -14,12 +14,13 @@ class ProjectLocator:
             dbase: str,
             dtype: Dtype,
             annotation: Annotation,
-            project: Union[str, List[str]],
+            project: str,
             sample: Optional[Union[str, List[str]]] = None,
             jxn_format: Optional[str] = None
     ):
 
-        # TODO: raise valueError for when samples is None and Dtype is BW
+        if dtype == Dtype.BW and sample is None:
+            raise ValueError(f'Parameter `sample` is required when `dtype` is {Dtype.BW}') 
 
         self.root_organism_url: str = root_organism_url
         self.data_sources: Dict[str, str] = data_sources
@@ -54,61 +55,53 @@ class ProjectLocator:
             case _:
                 raise ValueError(f'Invalid dtype: {self.dtype}')
 
-    def _get_indices(self, attribute_name):
+    def _get_indices(self, attribute_name) -> Dict[str, str]:
         return {value: value[-2:] for value in getattr(self, attribute_name)}
 
     @property
-    def _project_indices(self) -> str:
+    def _project_indices(self) -> Dict[str, str]:
         return self._get_indices(attribute_name='project')
 
     @property
-    def _sample_indices(self) -> str:
+    def _sample_indices(self) -> Dict[str, str]:
         return self._get_indices(attribute_name='sample')
 
     @property
     def fpaths(self) -> List[str]:
         paths = list()
-        file_names = list()
         base = path.join(self.root_organism_url)
+        tag_extension_prod = list(product(self._tags, self._extensions))
 
         match self.dtype:
             case Dtype.METADATA:
                 for project_id, project_index in self._project_indices.items():
+                    file_names = list()
                     project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value, project_index, project_id)
-                    tag_extension_prod = list(product(self._tags, self._extensions))
-
                     file_names.extend([f'{self.dbase}.{tag}.{project_id}.{ext}' for tag, ext in tag_extension_prod])
-
-                paths.extend([path.join(project_base, fn) for fn in file_names])
+                    paths.extend([path.join(project_base, fn) for fn in file_names])
 
             case Dtype.JXN:
                 for project_id, project_index in self._project_indices.items():
+                    file_names = list()
                     project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value, project_index, project_id)
-                    tag_extension_prod = list(product(self._tags, self._extensions))
-
                     file_names.extend([f'{self.dbase}.{tag}.{project_id}.{self.jxn_format.upper()}.{ext}' for tag, ext in tag_extension_prod])
-
-                paths.extend([path.join(project_base, fn) for fn in file_names])
+                    paths.extend([path.join(project_base, fn) for fn in file_names])
 
             case Dtype.BW:
                 for project_id, project_index in self._project_indices.items():
-                    project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value, project_index, project_id)
-                    tag_extension_prod = list(product(self._tags, self._extensions))
-
                     file_names = list()
+                    project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value, project_index, project_id)
                     for sample_id, sample_index in self._sample_indices.items():
                         file_names.extend(
                             [f'{sample_index}/{self.dbase}.{tag}.{project_id}_{sample_id}.{ext}' for tag, ext in tag_extension_prod]
                         )
-
-                paths.extend([path.join(project_base, fn) for fn in file_names])
+                    paths.extend([path.join(project_base, fn) for fn in file_names])
 
             case Dtype.GENE:
+                file_names = list()
                 organism = path.basename(base)
                 base = path.join(base, 'annotations', self.dtype.value)
-
                 file_names.extend([f'{organism}.{self.dtype.value}.{self.annotation.value}.{ext}' for ext in self._extensions])
-
                 paths.extend([path.join(base, fn) for fn in file_names])
 
             case _:

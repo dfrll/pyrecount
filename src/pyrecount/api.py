@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 import logging
-from typing import Optional, Union, List, Dict
+from typing import Optional, Dict
 from os.path import join, basename
 from .models import HOMES_INDEX
 from requests import Response, get
@@ -10,12 +10,9 @@ log = logging.getLogger()
 
 class EndpointConnector:
     def __init__(self, organism: str, root_url: str = 'http://duffel.rail.bio/recount3'):
-        self.organism: Union[str, List[str]] = organism
+        self.organism: str = organism
         self.root_url: str = root_url
 
-        self._initialize()
-
-    def _initialize(self):
         index = join(self.root_organism_url, HOMES_INDEX)
         resp = self._validate_endpoint(endpoint=index)
         if resp:
@@ -37,5 +34,5 @@ class EndpointConnector:
             resp.raise_for_status()
             return resp
         except RequestException as e:
-            log.error(f'Error while validating endpoint: {e}')
+            log.error(f'Error while validating endpoint {endpoint}: {e}')
             return None

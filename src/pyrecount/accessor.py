@@ -3,7 +3,6 @@ import re
 import logging
 from os import path
 import polars as pl
-from glob import glob
 from scipy.io import mmread
 from typing import Optional, Union, List, Tuple
 from pybiocfilecache import BiocFileCache, models
@@ -21,10 +20,9 @@ class Project():
     def __init__(
             self,
             metadata: pl.DataFrame,
-            dbase: str, 
+            dbase: str,
             dtype: Dtype,
             cache_location: Optional[str],
-            # TODO: handle annotation argument
             annotation: Optional[Annotation] = None,
             jxn_format: str = None,
             root_url: str = 'http://duffel.rail.bio/recount3/'
@@ -38,88 +36,100 @@ class Project():
         self.metadata: pl.DataFrame = metadata
         self.dbase: str = dbase
         self.dtype: Dtype = dtype
-        self.cache_location: str = path.join(cache_location, self.dtype.value)
+        self.cache_location: str = cache_location
         self.annotation: Annotation = annotation
         self.jxn_format: Optional[str] = jxn_format
         self.root_url: str = root_url
 
-    def load(self) -> Union[pl.DataFrame, Tuple[pl.DataFrame, pl.DataFrame]]:
-        cache: BiocFileCacheType = BiocFileCache(self.cache_location)
-        cache_resources: List[models.Resource] = cache.list_resources()
+        self.organism = self.metadata['organism'].unique().first()
+        self.organism_cache_location: str = path.join(self.cache_location, self.organism) if self.cache_location else None
+        self.endpoints = EndpointConnector(root_url=self.root_url, organism=self.organism)
+        self.project = self.metadata['project'].unique().to_list()
+        self.sample = self.metadata['external_id'].unique().to_list()
 
-        match self.dtype:
-            case Dtype.METADATA:
-                return self._metadata(cache_resources)
-            case Dtype.JXN:
-                # TODO: sending cache not necessary
-                return self._jxn(cache, cache_resources)
-            case Dtype.BW:
-                # TODO: sending cache not necessary
-                # XXX: expose BigWig URLs rather than caching
-                return self._bw(cache, cache_resources)
-            case Dtype.GENE:
-                return self._gene(cache_resources)
-            case _:
-                raise ValueError(f'Invalid dtype: {self.dtype}')
 
     def cache(self):
-
-        organism = self.metadata['organism'].unique()
-        endpoints = EndpointConnector(root_url=self.root_url, organism=organism.first())
-
-        self.project = self.metadata['project'].unique().to_list()
-        sample = self.metadata['external_id'].unique().to_list()
-
         project_metadata = ProjectLocator(
-            root_organism_url = endpoints.root_organism_url,
-            data_sources = endpoints.data_sources,
+            root_organism_url = self.endpoints.root_organism_url,
+            data_sources = self.endpoints.data_sources,
             dbase = self.dbase,
             dtype = self.dtype,
-            # TODO: handle Annotation type
             annotation = self.annotation,
             project = self.project,
-            sample = sample,
+            sample = self.sample,
             jxn_format = self.jxn_format
         )
 
         qcache = QCache(
-            fpaths=project_metadata.fpaths,
-            cache_location=self.cache_location
+            fpaths = project_metadata.fpaths,
+            organism_cache_location = self.organism_cache_location
         )
 
         match self.dtype:
             case Dtype.METADATA | Dtype.JXN | Dtype.BW:
                 qcache.biocache()
+                #qcache.biocache_serial()
             case Dtype.GENE:
                 # not spawning threads for so few data sources.
                 qcache.biocache_serial()
             case _:
                 raise ValueError(f'Invalid dtype: {self.dtype}')
 
+
+    def load(self) -> Union[pl.DataFrame, Tuple[pl.DataFrame, pl.DataFrame]]:
+
+        cache: BiocFileCacheType = BiocFileCache(self.organism_cache_location)
+        cache_resources: List[models.Resource] = cache.list_resources()
+
+        match self.dtype:
+            case Dtype.METADATA:
+                return self._metadata_load(cache_resources)
+            case Dtype.JXN:
+                # TODO: sending `cache` not necessary
+                return self._jxn_load(cache, cache_resources)
+            case Dtype.GENE:
+                return self._gene_load(cache_resources)
+            #case Dtype.BW:
+                ## TODO: sending cache not necessary
+                ## XXX: expose BigWig URLs rather than caching
+                #return self._bw_load(cache, cache_resources)
+            #case Dtype.EXON:
+                # TODO:
+                #return self._exon_load(cache_resources)
+            case _:
+                raise ValueError(f'Invalid dtype: {self.dtype}')
+
+
     def _get_jxn_ids(self, cache: BiocFileCacheType) -> List:
+        # TODO: redundant code
         cache_items = {item.rname: item.rpath for item in cache.list_resources()}
         ids_path = [rpath for rname, rpath in cache_items.items() if 'ID.gz' in rname][0]
-        return pl.read_csv(ids_path)['rail_id'].cast(str).to_list()
+        return pl.read_csv(ids_path, infer_schema=False)['rail_id'].to_list()#.cast(str).to_list()
+
 
     def _id_matrix_market(self, mm_dataframe: pl.DataFrame, cache: BiocFileCacheType) -> pl.DataFrame:
         ''' set column names to sample identifiers '''
         ids: List[str] = self._get_jxn_ids(cache)
         return mm_dataframe.rename(dict(zip(mm_dataframe.columns, ids)))
 
-    def _metadata(self, cache_resources: List[models.Resource]):
+
+    def _metadata_load(self, cache_resources: List[models.Resource]):
 
         join_cols = ['rail_id', 'external_id', 'study']
-        cache_dataframe: pl.DataFrame = self.metadata
+        cache_dataframe = None
 
         for resource in cache_resources:
             if self.dbase not in resource.rname:
                 continue
 
-            current_dataframe = pl.read_csv(resource.rpath, separator='\t')
+            current_dataframe = pl.read_csv(resource.rpath, separator='\t', infer_schema=False)
 
             try:
-                # use suffix to avoid name clashes in column names
-                cache_dataframe = cache_dataframe.join(current_dataframe, on=join_cols, suffix=resource.rid)
+                if cache_dataframe is None:
+                    cache_dataframe = current_dataframe
+                else:
+                    # use suffix to avoid name clashes in column names
+                    cache_dataframe = cache_dataframe.join(current_dataframe, on=join_cols, suffix=resource.rid)
             except Exception as e:
                 logging.error(f'Error joining resource {resource.rid} to metadata: {e}')
 
@@ -128,16 +138,16 @@ class Project():
 
         return replace_organism(cache_dataframe).unique()
 
-    def _jxn(self, cache: BiocFileCacheType, cache_resources: List[models.Resource]) -> Tuple[pl.DataFrame, pl.DataFrame]:
-        join_cols = ['rail_id']
 
-        mm_dataframe = None
+    def _jxn_load(self, cache: BiocFileCacheType, cache_resources: List[models.Resource]) -> Tuple[pl.DataFrame, pl.DataFrame]:
+
         for resource in cache_resources:
             if self.dbase not in resource.rname:
                 continue
-            # identifiers skipped until call to self._id_matrix_market(), self._get_jxn_ids().
+
+            # ids skipped until call to self._id_matrix_market()
             if 'ID' in resource.rname:
-                    continue
+                continue
 
             if 'MM' in resource.rname:
                 # the samples in the MM jxn table are not in the same order as the metadata.
@@ -145,10 +155,10 @@ class Project():
                 mm_array = mmread(resource.rpath).toarray()
                 mm_dataframe = self._id_matrix_market(pl.from_numpy(mm_array), cache)
             else:
-                # skip copy of metadata table.
-                # alternatively, assert (self.metadata == blah)
-                current_dataframe = pl.read_csv(resource.rpath, separator='\t')
-                if all(col in current_dataframe.columns for col in join_cols):
+                current_dataframe = pl.read_csv(resource.rpath, separator='\t', infer_schema=False)
+
+                # ignores {ID}_{dbase}.recount_project.MD.gz
+                if all(col in current_dataframe.columns for col in self.metadata.columns):
                     continue
                 else:
                     cache_dataframe = current_dataframe
@@ -157,7 +167,8 @@ class Project():
         # return pl.concat([cache_dataframe, mm_dataframe])
         return mm_dataframe, cache_dataframe
 
-    def _bw(self, cache: BiocFileCacheType, cache_resources: List[models.Resource]) -> Tuple[pl.DataFrame, pl.DataFrame]:
+
+    def _bw_load(self, cache: BiocFileCacheType, cache_resources: List[models.Resource]) -> Tuple[pl.DataFrame, pl.DataFrame]:
         # XXX: expose BigWig URLs rather than caching
         for resource in cache_resources:
             if self.dbase not in resource.rname:
@@ -167,17 +178,18 @@ class Project():
 
         return pl.DataFrame()
 
-    def _gene(self, cache_resources: List[models.Resource]) -> pl.DataFrame:
+
+    def _gene_load(self, cache_resources: List[models.Resource]) -> pl.DataFrame:
         for resource in cache_resources:
             if self.annotation.value not in resource.rname:
                 continue
 
             current_dataframe = pl.read_csv(
                 resource.rpath,
-                comment_prefix='#',
-                separator='\t',
-                new_columns=['seqname', 'source', 'feature', 'start', 'end',
-                             'score', 'strand', 'frame', 'attribute']
+                comment_prefix = '#',
+                separator = '\t',
+                new_columns = ['seqname', 'source', 'feature', 'start', 'end',
+                               'score', 'strand', 'frame', 'attribute']
             )
 
             fields = ['gene_id', 'transcript_id', 'exon_number', 'gene_name', 'gene_source',
@@ -192,16 +204,18 @@ class Project():
                     ).alias(field) for field in fields]
             )
 
+
 class Metadata():
     def __init__(
             self,
             organism: str,
-            cache_location: Optional[str],
+            cache_location: str,
             root_url: str = 'http://duffel.rail.bio/recount3/'
     ):
         self.organism: str = organism
-        self.cache_location: str = cache_location
+        self.organism_cache_location: str = path.join(cache_location, organism) if cache_location else None
         self.root_url: str = root_url
+
 
     def cache(self) -> None:
         try:
@@ -209,26 +223,37 @@ class Metadata():
             metadata = MetadataLocator(root_organism_url=endpoints.root_organism_url, data_sources=endpoints.data_sources)
 
             QCache(
-                fpaths=metadata.fpaths,
-                cache_location=self.cache_location
+                fpaths = metadata.fpaths,
+                organism_cache_location = self.organism_cache_location
             # not spawning threads for so few data sources.
             ).biocache_serial()
 
         except Exception as e:
             log.error(e)
 
+
     def load(self) -> pl.DataFrame:
-        # TODO: extract extension + pattern from .sqlite db
-        ext = 'MD.gz'
-        pattern = 'recount_project'
+        pattern = '.recount_project.'
         sep = '\t'
 
-        fpaths = glob(path.join(self.cache_location, f'*{pattern}*{ext}'))
+        cache: BiocFileCacheType = BiocFileCache(self.organism_cache_location)
+        cache_resources: List[models.Resource] = cache.list_resources()
 
-        meta_dataframe = pl.read_csv(fpaths[0], separator=sep)
+        dataframes = list()
+        for resource in cache_resources:
+            if pattern not in resource.rname:
+                continue
 
-        for table_fpath in fpaths[1:]:
-            current_table = pl.read_csv(table_fpath, separator='\t')
-            meta_dataframe = pl.concat([meta_dataframe, current_table])
+            try:
+                logging.info(f'Reading file: {resource.rpath}')
+                current_dataframe = pl.read_csv(resource.rpath, separator=sep)
+                dataframes.append(current_dataframe)
+            except Exception as e:
+                logging.error(f'Error reading file {resource.rpath}: {e}')
 
+        if not dataframes:
+            logging.error('All file reads failed.')
+            return pl.DataFrame()
+
+        meta_dataframe = pl.concat(dataframes, how='vertical')
         return replace_organism(meta_dataframe).unique()

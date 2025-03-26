@@ -4,12 +4,13 @@ from enum import Enum
 HOMES_INDEX = 'homes_index'
 
 class Annotation(Enum):
-    GENCODE_V26 = 'G026'
     GENCODE_V29 = 'G029'
-    ERCC = 'ERCC'
+    GENCODE_V26 = 'G026'
     FANTOM6_CAT = 'F006'
     REFSEQ = 'R109'
+    ERCC = 'ERCC'
     SIRV = 'SIRV'
+    GENCODE_V23 = 'M023'
 
 class Dtype(Enum):
     METADATA = 'metadata'
