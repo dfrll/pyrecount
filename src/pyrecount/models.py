@@ -26,3 +26,10 @@ class Tags(Enum):
         'recount_seq_qc',
         'recount_pred',
     ]
+
+class Extensions(Enum):
+    METADATA = ['MD.gz']
+    GENE = ['gtf.gz']
+    EXON = ['gtf.gz']
+    JXN = ['MM.gz', 'RR.gz', 'ID.gz']
+    BW = ['ALL.bw']

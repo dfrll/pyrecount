@@ -31,6 +31,7 @@ class ProjectLocator:
         self.sample: List[str] = [sample] if isinstance(sample, str) else sample
         self.jxn_format: Optional[str] = jxn_format
 
+    # TODO: replace with .models.extensions
     @property
     def _extensions(self) -> List[str]:
         match self.dtype:

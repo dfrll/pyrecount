@@ -11,7 +11,7 @@ from pybiocfilecache.cache import BiocFileCache as BiocFileCacheType
 from .utils import *
 from .cache import QCache
 from .api import EndpointConnector
-from .models import Dtype, Annotation
+from .models import Dtype, Annotation, Extensions
 from .locator import ProjectLocator, MetadataLocator
 
 log = logging.getLogger()
@@ -101,7 +101,7 @@ class Project():
 
 
     def _get_jxn_ids(self, cache: BiocFileCacheType) -> List:
-        # TODO: redundant code
+        # XXX: redundant procedure for reading cache.list_resources()
         cache_items = {item.rname: item.rpath for item in cache.list_resources()}
         ids_path = [rpath for rname, rpath in cache_items.items() if 'ID.gz' in rname][0]
         return pl.read_csv(ids_path, infer_schema=False)['rail_id'].to_list()#.cast(str).to_list()
@@ -121,8 +121,16 @@ class Project():
         for resource in cache_resources:
             if self.dbase not in resource.rname:
                 continue
+            # read files associated with self.dtype only.
+            ext_vals = getattr(Extensions, self.dtype.name).value
+            if not any(ext in resource.rname for ext in ext_vals):
+                continue
 
-            current_dataframe = pl.read_csv(resource.rpath, separator='\t', infer_schema=False)
+            try:
+                current_dataframe = pl.read_csv(resource.rpath, separator='\t', infer_schema=False)
+            except Exception as e:
+                logging.error(f'Error reading file {resource.rpath}: {e}')
+                return 
 
             try:
                 if cache_dataframe is None:
@@ -132,6 +140,7 @@ class Project():
                     cache_dataframe = cache_dataframe.join(current_dataframe, on=join_cols, suffix=resource.rid)
             except Exception as e:
                 logging.error(f'Error joining resource {resource.rid} to metadata: {e}')
+                return 
 
         # drop duplicate columns
         cache_dataframe = cache_dataframe.drop([col for col in cache_dataframe.columns if 'BFC' in col])
@@ -155,7 +164,11 @@ class Project():
                 mm_array = mmread(resource.rpath).toarray()
                 mm_dataframe = self._id_matrix_market(pl.from_numpy(mm_array), cache)
             else:
-                current_dataframe = pl.read_csv(resource.rpath, separator='\t', infer_schema=False)
+                try:
+                    current_dataframe = pl.read_csv(resource.rpath, separator='\t', infer_schema=False)
+                except Exception as e:
+                    logging.error(f'Error reading file {resource.rpath}: {e}')
+                    return 
 
                 # ignores {ID}_{dbase}.recount_project.MD.gz
                 if all(col in current_dataframe.columns for col in self.metadata.columns):
@@ -250,6 +263,7 @@ class Metadata():
                 dataframes.append(current_dataframe)
             except Exception as e:
                 logging.error(f'Error reading file {resource.rpath}: {e}')
+                return
 
         if not dataframes:
             logging.error('All file reads failed.')

@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 import polars as pl
-from pyrecount.models import Dtype, Annotation
+from pyrecount.models import Dtype, Annotation, Extensions
 from pyrecount.accessor import Metadata, Project
 
 # TODO: extract counts data
@@ -47,7 +47,6 @@ project_metadata.cache()
 project_meta_dataframe = project_metadata.load()
 
 print(project_meta_dataframe)
-
 
 # project junctions
 dtype = Dtype.JXN
