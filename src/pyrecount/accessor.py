@@ -24,7 +24,7 @@ class Project():
             metadata: pl.DataFrame,
             dbase: str,
             dtype: Dtype,
-            cache_location: Optional[str],
+            cache_location: str,
             annotation: Optional[Annotation] = None,
             jxn_format: str = None,
             root_url: str = 'http://duffel.rail.bio/recount3/'
