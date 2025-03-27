@@ -32,8 +32,8 @@ class Project():
 
         if dtype == Dtype.JXN and jxn_format is None:
             raise ValueError(f'Parameter `jxn_format` is required when `dtype` is {Dtype.JXN}.')
-        if dtype == Dtype.GENE and annotation is None:
-            raise ValueError(f'Parameter `annotations` is required when `dtype` is {Dtype.GENE}.')
+        if dtype in (Dtype.GENE, Dtype.EXON) and annotation is None:
+            raise ValueError(f'Parameter `annotations` is required when `dtype` is {dtype}.')
 
         self.metadata: pl.DataFrame = metadata
         self.dbase: str = dbase

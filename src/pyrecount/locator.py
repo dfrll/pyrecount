@@ -107,7 +107,7 @@ class ProjectLocator:
                 paths.extend(path.join(annotation_base, fn) for fn in annotation_files)
 
                 # counts
-                project_base = path.join(self.root_organism_url, self.data_sources[self.dbase], self.dtype.value)
+                project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value)
                 for project_id, project_index in self._project_indices.items():
                     current_base = path.join(project_base, project_index, project_id)
                     project_files = [
