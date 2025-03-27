@@ -79,9 +79,10 @@ gene = Project(
 )
 
 gene.cache()
-gene_dataframe = gene.load()
+gene_annotation, gene_counts = gene.load()
 
-print(gene_dataframe)
+print(gene_annotation)
+print(gene_counts)
 
 dtype = Dtype.EXON
 annotation = Annotation.GENCODE_V29
@@ -95,6 +96,7 @@ exon = Project(
 )
 
 exon.cache()
-exon_dataframe = exon.load()
+exon_annotation, exon_counts = exon.load()
 
-print(exon_dataframe)
+print(exon_annotation)
+print(exon_counts)

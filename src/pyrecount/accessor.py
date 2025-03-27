@@ -51,6 +51,7 @@ class Project():
 
 
     def cache(self):
+
         project = ProjectLocator(
             root_organism_url = self.endpoints.root_organism_url,
             data_sources = self.endpoints.data_sources,
@@ -154,6 +155,8 @@ class Project():
         for resource in cache_resources:
             if self.dbase not in resource.rname:
                 continue
+            if self.dtype.value not in resource.rname:
+                continue
 
             # ids skipped until call to self._id_matrix_market()
             if 'ID' in resource.rname:
@@ -182,20 +185,19 @@ class Project():
         return mm_dataframe, cache_dataframe
 
 
+    # TODO:
     def _bw_load(self, cache: BiocFileCacheType, cache_resources: List[models.Resource]) -> Tuple[pl.DataFrame, pl.DataFrame]:
         # XXX: expose BigWig URLs rather than caching
         for resource in cache_resources:
             if self.dbase not in resource.rname:
                 continue
-
             #bw: bigWigFile = pyBigWig.open(resource.rpath)
-
         return pl.DataFrame()
 
 
     def _read_gtf(self, rpath: str) -> pl.DataFrame:
 
-        current_dataframe = pl.read_csv(
+        annotation_dataframe = pl.read_csv(
             rpath,
             comment_prefix = '#',
             separator = '\t',
@@ -208,32 +210,44 @@ class Project():
                     'transcript_biotype', 'protein_id', 'exon_id', 'tag'
         ]
 
-        return current_dataframe.with_columns([
-                current_dataframe['attribute'].map_elements(
+        return annotation_dataframe.with_columns([
+                annotation_dataframe['attribute'].map_elements(
                     lambda x: re.findall(rf'{field} "([^"]*)"', x)[0] if rf'{field} "' in x else '',
                     return_dtype=pl.Utf8  
                 ).alias(field) for field in fields]
         )
 
 
+    def _read_counts(self, rname: str):
+        # TODO: extract first column (chromosome|start_1base|end_1ba…)
+        counts_dataframe = pl.read_csv(
+            rname,
+            comment_prefix = '#',
+            separator = '\t',
+        )
+        return counts_dataframe 
+
+
     def _gene_load(self, cache_resources: List[models.Resource]) -> pl.DataFrame:
         for resource in cache_resources:
-            if self.annotation.value not in resource.rname:
-                continue
-            if self.dtype.value not in resource.rname:
-                continue
+            if self.annotation.value in resource.rname:
+                if any(resource.rname.endswith(ext) for ext in Extensions.EXON.value):
+                    annotation = self._read_gtf(resource.rpath)
+                if resource.rname.endswith(f'{self.annotation.value}.gz'):
+                    counts = self._read_counts(resource.rpath)
 
-            return self._read_gtf(resource.rpath)
+        return annotation, counts
 
 
     def _exon_load(self, cache_resources: List[models.Resource]) -> pl.DataFrame:
         for resource in cache_resources:
-            if self.annotation.value not in resource.rname:
-                continue
-            if self.dtype.value not in resource.rname:
-                continue
+            if self.annotation.value in resource.rname:
+                if any(resource.rname.endswith(ext) for ext in Extensions.EXON.value):
+                    annotation = self._read_gtf(resource.rpath)
+                if resource.rname.endswith(f'{self.annotation.value}.gz'):
+                    counts = self._read_counts(resource.rpath)
 
-            return self._read_gtf(resource.rpath)
+        return annotation, counts
 
 
 class Metadata():

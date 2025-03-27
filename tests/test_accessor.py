@@ -101,20 +101,24 @@ def test_project_metadata_accessor(organism, project, expected_shape):
     assert meta_dataframe.shape == expected_shape
 
 
-@pytest.mark.parametrize('organism, annotation, expected_shape', [
-    ('human', Annotation.GENCODE_V29, (1377600, 21)),
-    ('mouse', Annotation.GENCODE_V23, (841915, 21))
+@pytest.mark.parametrize('organism, project, annotation, expected_annotation_shape, expected_counts_shape', [
+    ('human', ['SRP009615'], Annotation.GENCODE_V29, (1377600, 21), (1377601, 13)),
+    ('mouse', ['SRP111354'], Annotation.GENCODE_V23, (841915, 21), (841916, 16))
 ])
-def test_project_exon_accessor(organism, annotation, expected_shape):
+def test_project_exon_accessor(organism, annotation, project, expected_annotation_shape, expected_counts_shape):
 
     # TODO: mock dataframe instead
     root_url = 'http://duffel.rail.bio/recount3'
-    cache_location = path.join(outpath, 'test_project_jxn_accessor')
+    cache_location = path.join(outpath, 'test_project_exon_accessor')
 
     metadata = Metadata(organism=organism, root_url=root_url, cache_location=cache_location)
     metadata.cache()
 
     meta_dataframe = metadata.load()
+
+    meta_dataframe = metadata.load().filter(
+        (pl.col('project').is_in(project))
+    )
 
     exon = Project(
         metadata = meta_dataframe,
@@ -127,25 +131,30 @@ def test_project_exon_accessor(organism, annotation, expected_shape):
     )
 
     exon.cache()
-    exon_dataframe = exon.load()
+    exon_annotation, exon_counts = exon.load()
+    
+    assert exon_annotation.shape == expected_annotation_shape
+    #assert exon_counts == expected_counts_shape
 
-    assert exon_dataframe.shape == expected_shape
 
-
-@pytest.mark.parametrize('organism, annotation, expected_shape', [
-    ('human', Annotation.GENCODE_V29, (64836, 21)),
-    ('mouse', Annotation.GENCODE_V23, (55420, 21))
+@pytest.mark.parametrize('organism, project, annotation, expected_annotation_shape, expected_counts_shape', [
+    ('human', ['SRP009615'], Annotation.GENCODE_V29, (64836, 21), (64837, 13)),
+    ('mouse', ['SRP111354'], Annotation.GENCODE_V23, (55420, 21), (55421, 16))
 ])
-def test_project_gene_accessor(organism, annotation, expected_shape):
+def test_project_gene_accessor(organism, project, annotation, expected_annotation_shape, expected_counts_shape):
 
     # TODO: mock dataframe instead
     root_url = 'http://duffel.rail.bio/recount3'
-    cache_location = path.join(outpath, 'test_project_jxn_accessor')
+    cache_location = path.join(outpath, 'test_project_gene_accessor')
 
     metadata = Metadata(organism=organism, root_url=root_url, cache_location=cache_location)
     metadata.cache()
 
     meta_dataframe = metadata.load()
+
+    meta_dataframe = metadata.load().filter(
+        (pl.col('project').is_in(project))
+    )
 
     gene = Project(
         metadata = meta_dataframe,
@@ -158,6 +167,7 @@ def test_project_gene_accessor(organism, annotation, expected_shape):
     )
 
     gene.cache()
-    gene_dataframe = gene.load()
+    gene_annotation, gene_counts = gene.load()
 
-    assert gene_dataframe.shape == expected_shape
+    assert gene_annotation.shape == expected_annotation_shape
+    #assert gene_counts.shape == expected_counts_shape
