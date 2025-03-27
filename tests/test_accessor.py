@@ -8,9 +8,17 @@ import polars as pl
 outpath = path.dirname(__file__)
 
 # TODO: stricter caching mechanism
+# TODO: add gene.get_read_counts to testing
 # TODO: transform raw counts
 # TODO: test dbs other than sra
 # TODO: handle BigWig
+
+
+#@pytest.mark.parametrize('', [
+    #()
+#])
+#def test_get_read_counts():
+    #return
 
 
 @pytest.mark.parametrize('organism, expected_shape', [

@@ -101,6 +101,28 @@ class Project():
             case _:
                 raise ValueError(f'Invalid dtype: {self.dtype}')
 
+    # transform method
+    def get_read_counts(self, raw_counts: pl.DataFrame, meta_dataframe: pl.DataFrame) -> pl.DataFrame:
+        # use pivot rather than transpose for external_id tracking
+        # XXX: use variable_name and value_name in pivot function calls
+        counts = raw_counts \
+            .unpivot(index='gene_id') \
+            .pivot(on='gene_id', index='variable', values='value') \
+            .sort(by='variable')
+
+        meta_dataframe = meta_dataframe \
+            .with_columns(
+                pl.col('star.average_mapped_length').cast(pl.Float64)
+            ).sort(by='external_id')
+
+        counts = counts.with_columns(
+            (counts[col] / meta_dataframe['star.average_mapped_length']).alias(col)
+            for col in counts.columns if col != 'variable'
+        ).unpivot(index='variable', variable_name='gene_id').\
+        pivot(on='variable', index='gene_id', values='value')
+
+        return counts
+
 
     def _get_jxn_ids(self, cache: BiocFileCacheType) -> List:
         # XXX: redundant procedure for reading cache.list_resources()

@@ -3,10 +3,6 @@ import polars as pl
 from pyrecount.models import Dtype, Annotation, Extensions
 from pyrecount.accessor import Metadata, Project
 
-# TODO: stricter caching mechanism
-# TODO: transform raw counts
-# TODO: test dbs other than sra
-# TODO: handle BigWig
 
 cache_location = 'myproject'
 organism = 'human'
@@ -101,22 +97,8 @@ gene = Project(
 
 gene.cache()
 gene_annotation, gene_raw_counts = gene.load()
+read_counts = gene.get_read_counts(gene_raw_counts, project_meta_dataframe)
 
 print(gene_annotation)
 print(gene_raw_counts)
-
-
-# transform to read counts
-# XXX: make sure dataframes are in the same order before division
-
-gene_counts = gene_raw_counts.unpivot(index='gene_id').pivot(on='gene_id', index='variable', values='value').sort(by='variable')
-
-project_meta_dataframe = project_meta_dataframe.sort(by='external_id').with_columns(pl.col('star.average_mapped_length').cast(pl.Float64))
-
-gene_counts = gene_counts.with_columns(
-    (gene_counts[col] / project_meta_dataframe['star.average_mapped_length']).alias(col)
-    for col in gene_counts.columns if col != 'variable'
-)
-
-print(project_meta_dataframe)
-print(gene_counts)
+print(read_counts)
