@@ -109,9 +109,11 @@ print(gene_raw_counts)
 # transform to read counts
 gene_counts = gene_raw_counts.unpivot(index='gene_id').pivot(on='gene_id', index='variable', values='value')
 
-avg_mapped_read_length = project_meta_dataframe.select('external_id', 'star.average_mapped_length')
+# XXX: make sure dataframes are in the same order before division
+#gene_counts = gene_counts.with_columns(
+    #(gene_counts[col] / project_meta_dataframe['star.average_mapped_length'].cast(pl.Float64)).alias(col)
+    #for col in gene_counts.columns if col != 'variable'
+#)
 
-gene_counts = gene_counts.with_columns(
-    (gene_counts[col] / project_meta_dataframe['star.average_mapped_length'].cast(pl.Float64)).alias(col)
-    for col in gene_counts.columns if col != 'variable'
-)
+#print(project_meta_dataframe)
+#print(gene_counts)
