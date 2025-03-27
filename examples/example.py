@@ -3,8 +3,8 @@ import polars as pl
 from pyrecount.models import Dtype, Annotation, Extensions
 from pyrecount.accessor import Metadata, Project
 
-# TODO: extract counts data
-# TODO: testing dbs other than sra
+# TODO: transform raw counts
+# TODO: test dbs other than sra
 # TODO: handle BigWig
 
 cache_location = 'myproject'
@@ -48,6 +48,7 @@ project_meta_dataframe = project_metadata.load()
 
 print(project_meta_dataframe)
 
+
 # project junctions
 dtype = Dtype.JXN
 
@@ -66,7 +67,7 @@ print(jxn_mm_dataframe)
 print(jxn_dataframe)
 
 
-# project gene annotation
+# project gene annotation, raw coverage counts
 dtype = Dtype.GENE
 annotation = Annotation.GENCODE_V29
 
@@ -79,11 +80,13 @@ gene = Project(
 )
 
 gene.cache()
-gene_annotation, gene_counts = gene.load()
+gene_annotation, gene_raw_counts = gene.load()
 
 print(gene_annotation)
-print(gene_counts)
+print(gene_raw_counts)
 
+
+# project exon annotation, raw coverage counts
 dtype = Dtype.EXON
 annotation = Annotation.GENCODE_V29
 
@@ -96,7 +99,7 @@ exon = Project(
 )
 
 exon.cache()
-exon_annotation, exon_counts = exon.load()
+exon_annotation, exon_raw_counts = exon.load()
 
 print(exon_annotation)
-print(exon_counts)
+print(exon_raw_counts)

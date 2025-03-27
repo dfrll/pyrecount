@@ -7,15 +7,9 @@ import polars as pl
 
 outpath = path.dirname(__file__)
 
-# TODO: testing dbs other than sra
-
+# TODO: transform raw counts
+# TODO: test dbs other than sra
 # TODO: handle BigWig
-
-#@pytest.mark.parametrize('', [
-    #(),
-#])
-#def test_project_bw_accessor(organism, annotation, expected_shape):
-    #return 
 
 
 @pytest.mark.parametrize('organism, expected_shape', [
@@ -57,7 +51,7 @@ def test_project_jxn_accessor(organism, project, expected_shape, expected_mm_sha
         dtype = Dtype.JXN,
         annotation = Annotation,
         cache_location = cache_location,
-        jxn_format = 'ALL',
+        jxn_format = 'UNIQUE',
         root_url = root_url
     )
 
