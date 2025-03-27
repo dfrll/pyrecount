@@ -3,6 +3,7 @@ import polars as pl
 from pyrecount.models import Dtype, Annotation, Extensions
 from pyrecount.accessor import Metadata, Project
 
+# TODO: stricter caching mechanism
 # TODO: transform raw counts
 # TODO: test dbs other than sra
 # TODO: handle BigWig
@@ -67,6 +68,25 @@ print(jxn_mm_dataframe)
 print(jxn_dataframe)
 
 
+# project exon annotation, raw coverage counts
+dtype = Dtype.EXON
+annotation = Annotation.GENCODE_V29
+
+exon = Project(
+    metadata = project_dataframe,
+    dbase = dbase,
+    dtype = dtype,
+    cache_location = cache_location,
+    annotation = annotation
+)
+
+exon.cache()
+exon_annotation, exon_raw_counts = exon.load()
+
+print(exon_annotation)
+print(exon_raw_counts)
+
+
 # project gene annotation, raw coverage counts
 dtype = Dtype.GENE
 annotation = Annotation.GENCODE_V29
@@ -86,20 +106,12 @@ print(gene_annotation)
 print(gene_raw_counts)
 
 
-# project exon annotation, raw coverage counts
-dtype = Dtype.EXON
-annotation = Annotation.GENCODE_V29
+# transform to read counts
+gene_counts = gene_raw_counts.unpivot(index='gene_id').pivot(on='gene_id', index='variable', values='value')
 
-exon = Project(
-    metadata = project_dataframe,
-    dbase = dbase,
-    dtype = dtype,
-    cache_location = cache_location,
-    annotation = annotation
+avg_mapped_read_length = project_meta_dataframe.select('external_id', 'star.average_mapped_length')
+
+gene_counts = gene_counts.with_columns(
+    (gene_counts[col] / project_meta_dataframe['star.average_mapped_length'].cast(pl.Float64)).alias(col)
+    for col in gene_counts.columns if col != 'variable'
 )
-
-exon.cache()
-exon_annotation, exon_raw_counts = exon.load()
-
-print(exon_annotation)
-print(exon_raw_counts)

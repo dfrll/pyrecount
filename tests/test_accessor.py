@@ -7,6 +7,7 @@ import polars as pl
 
 outpath = path.dirname(__file__)
 
+# TODO: stricter caching mechanism
 # TODO: transform raw counts
 # TODO: test dbs other than sra
 # TODO: handle BigWig
@@ -51,7 +52,7 @@ def test_project_jxn_accessor(organism, project, expected_shape, expected_mm_sha
         dtype = Dtype.JXN,
         annotation = Annotation,
         cache_location = cache_location,
-        jxn_format = 'UNIQUE',
+        jxn_format = 'ALL',
         root_url = root_url
     )
 

@@ -76,8 +76,8 @@ class ProjectLocator:
 
         match self.dtype:
             case Dtype.METADATA:
+
                 project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value)
-    
                 for project_id, project_index in self._project_indices.items():
                     file_names = [
                         f'{self.dbase}.{tag}.{project_id}.{ext}' 
@@ -86,8 +86,8 @@ class ProjectLocator:
                     paths.extend(path.join(project_base, project_index, project_id, fn) for fn in file_names)
 
             case Dtype.JXN:
-                project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value)
     
+                project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value)
                 for project_id, project_index in self._project_indices.items():
                     file_names = [
                         f'{self.dbase}.{tag}.{project_id}.{self.jxn_format.upper()}.{ext}' 
@@ -106,7 +106,7 @@ class ProjectLocator:
                 ]
                 paths.extend(path.join(annotation_base, fn) for fn in annotation_files)
 
-                # counts
+                # raw coverage counts
                 project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value)
                 for project_id, project_index in self._project_indices.items():
                     current_base = path.join(project_base, project_index, project_id)
@@ -153,5 +153,5 @@ class MetadataLocator():
 
     @property
     def fpaths(self) -> List[str]:
-        dtype, ext = 'metadata', '.recount_project.MD.gz'
-        return [path.join(self.root_organism_url, dsource, dtype, path.basename(dsource) + ext) for dsource in self.data_sources.values()]
+        dtype, ext = Dtype.METADATA, '.recount_project.MD.gz'
+        return [path.join(self.root_organism_url, dsource, dtype.value, path.basename(dsource) + ext) for dsource in self.data_sources.values()]

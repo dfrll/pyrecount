@@ -69,11 +69,12 @@ class Project():
         )
 
         match self.dtype:
-            case Dtype.METADATA | Dtype.JXN | Dtype.BW:
+            case Dtype.METADATA | Dtype.JXN:
                 qcache.biocache()
             case Dtype.GENE | Dtype.EXON:
-                # not spawning threads for so few data sources.
                 qcache.biocache_serial()
+            case Dtype.BW:
+                qcache.biocahe_serial()
             case _:
                 raise ValueError(f'Invalid dtype: {self.dtype}')
 
@@ -231,7 +232,7 @@ class Project():
     def _gene_load(self, cache_resources: List[models.Resource]) -> pl.DataFrame:
         for resource in cache_resources:
             if self.annotation.value in resource.rname:
-                if any(resource.rname.endswith(ext) for ext in Extensions.EXON.value):
+                if any(resource.rname.endswith(ext) for ext in Extensions.GENE.value):
                     annotation = self._read_gtf(resource.rpath)
                 if resource.rname.endswith(f'{self.annotation.value}.gz'):
                     counts = self._read_counts(resource.rpath)
