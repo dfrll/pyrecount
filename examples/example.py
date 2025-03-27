@@ -82,3 +82,20 @@ gene.cache()
 gene_dataframe = gene.load()
 
 print(gene_dataframe)
+
+dtype = Dtype.EXON
+annotation = Annotation.GENCODE_V29
+
+exon = Project(
+    metadata = project_dataframe,
+    dbase = dbase,
+    dtype = dtype,
+    cache_location = cache_location,
+    annotation = annotation
+)
+
+exon.cache()
+exon_dataframe = exon.load()
+
+print(exon_dataframe)
+exon_dataframe.write_csv('exon_dataframe.csv')

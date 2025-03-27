@@ -14,6 +14,8 @@ from .api import EndpointConnector
 from .models import Dtype, Annotation, Extensions
 from .locator import ProjectLocator, MetadataLocator
 
+from pprint import pprint
+
 log = logging.getLogger()
 
 class Project():
@@ -69,7 +71,7 @@ class Project():
             case Dtype.METADATA | Dtype.JXN | Dtype.BW:
                 qcache.biocache()
                 #qcache.biocache_serial()
-            case Dtype.GENE:
+            case Dtype.GENE | Dtype.EXON:
                 # not spawning threads for so few data sources.
                 qcache.biocache_serial()
             case _:
@@ -89,13 +91,12 @@ class Project():
                 return self._jxn_load(cache, cache_resources)
             case Dtype.GENE:
                 return self._gene_load(cache_resources)
+            case Dtype.EXON:
+                return self._exon_load(cache_resources)
             #case Dtype.BW:
                 ## TODO: sending cache not necessary
                 ## XXX: expose BigWig URLs rather than caching
                 #return self._bw_load(cache, cache_resources)
-            #case Dtype.EXON:
-                # TODO:
-                #return self._exon_load(cache_resources)
             case _:
                 raise ValueError(f'Invalid dtype: {self.dtype}')
 
@@ -121,6 +122,7 @@ class Project():
         for resource in cache_resources:
             if self.dbase not in resource.rname:
                 continue
+
             # read files associated with self.dtype only.
             ext_vals = getattr(Extensions, self.dtype.name).value
             if not any(ext in resource.rname for ext in ext_vals):
@@ -130,7 +132,7 @@ class Project():
                 current_dataframe = pl.read_csv(resource.rpath, separator='\t', infer_schema=False)
             except Exception as e:
                 logging.error(f'Error reading file {resource.rpath}: {e}')
-                return 
+                return
 
             try:
                 if cache_dataframe is None:
@@ -140,7 +142,7 @@ class Project():
                     cache_dataframe = cache_dataframe.join(current_dataframe, on=join_cols, suffix=resource.rid)
             except Exception as e:
                 logging.error(f'Error joining resource {resource.rid} to metadata: {e}')
-                return 
+                return
 
         # drop duplicate columns
         cache_dataframe = cache_dataframe.drop([col for col in cache_dataframe.columns if 'BFC' in col])
@@ -192,30 +194,47 @@ class Project():
         return pl.DataFrame()
 
 
+    def _read_gtf(self, rpath: str) -> pl.DataFrame:
+
+        current_dataframe = pl.read_csv(
+            rpath,
+            comment_prefix = '#',
+            separator = '\t',
+            new_columns = ['seqname', 'source', 'feature', 'start', 'end',
+                            'score', 'strand', 'frame', 'attribute']
+        )
+
+        fields = ['gene_id', 'transcript_id', 'exon_number', 'gene_name', 'gene_source',
+                    'gene_biotype', 'transcript_name', 'transcript_source',
+                    'transcript_biotype', 'protein_id', 'exon_id', 'tag'
+        ]
+
+        return current_dataframe.with_columns([
+                current_dataframe['attribute'].map_elements(
+                    lambda x: re.findall(rf'{field} "([^"]*)"', x)[0] if rf'{field} "' in x else '',
+                    return_dtype=pl.Utf8  
+                ).alias(field) for field in fields]
+        )
+
+
     def _gene_load(self, cache_resources: List[models.Resource]) -> pl.DataFrame:
         for resource in cache_resources:
             if self.annotation.value not in resource.rname:
                 continue
+            if self.dtype.value not in resource.rname:
+                continue
 
-            current_dataframe = pl.read_csv(
-                resource.rpath,
-                comment_prefix = '#',
-                separator = '\t',
-                new_columns = ['seqname', 'source', 'feature', 'start', 'end',
-                               'score', 'strand', 'frame', 'attribute']
-            )
+            return self._read_gtf(resource.rpath)
 
-            fields = ['gene_id', 'transcript_id', 'exon_number', 'gene_name', 'gene_source',
-                      'gene_biotype', 'transcript_name', 'transcript_source',
-                      'transcript_biotype', 'protein_id', 'exon_id', 'tag'
-            ]
 
-            return current_dataframe.with_columns([
-                    current_dataframe['attribute'].map_elements(
-                        lambda x: re.findall(rf'{field} "([^"]*)"', x)[0] if rf'{field} "' in x else '',
-                        return_dtype=pl.Utf8  
-                    ).alias(field) for field in fields]
-            )
+    def _exon_load(self, cache_resources: List[models.Resource]) -> pl.DataFrame:
+        for resource in cache_resources:
+            if self.annotation.value not in resource.rname:
+                continue
+            if self.dtype.value not in resource.rname:
+                continue
+
+            return self._read_gtf(resource.rpath)
 
 
 class Metadata():
