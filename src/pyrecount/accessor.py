@@ -51,7 +51,7 @@ class Project():
 
 
     def cache(self):
-        project_metadata = ProjectLocator(
+        project = ProjectLocator(
             root_organism_url = self.endpoints.root_organism_url,
             data_sources = self.endpoints.data_sources,
             dbase = self.dbase,
@@ -63,14 +63,13 @@ class Project():
         )
 
         qcache = QCache(
-            fpaths = project_metadata.fpaths,
+            fpaths = project.fpaths,
             organism_cache_location = self.organism_cache_location
         )
 
         match self.dtype:
             case Dtype.METADATA | Dtype.JXN | Dtype.BW:
                 qcache.biocache()
-                #qcache.biocache_serial()
             case Dtype.GENE | Dtype.EXON:
                 # not spawning threads for so few data sources.
                 qcache.biocache_serial()

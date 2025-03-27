@@ -98,4 +98,3 @@ exon.cache()
 exon_dataframe = exon.load()
 
 print(exon_dataframe)
-exon_dataframe.write_csv('exon_dataframe.csv')

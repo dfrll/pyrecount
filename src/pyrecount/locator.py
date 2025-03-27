@@ -71,40 +71,71 @@ class ProjectLocator:
     def fpaths(self) -> List[str]:
         paths = list()
         base = path.join(self.root_organism_url)
+        # TODO: replace _extensions with .models.extensions
         tag_extension_prod = list(product(self._tags, self._extensions))
 
         match self.dtype:
             case Dtype.METADATA:
+                project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value)
+    
                 for project_id, project_index in self._project_indices.items():
-                    file_names = list()
-                    project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value, project_index, project_id)
-                    file_names.extend([f'{self.dbase}.{tag}.{project_id}.{ext}' for tag, ext in tag_extension_prod])
-                    paths.extend([path.join(project_base, fn) for fn in file_names])
+                    file_names = [
+                        f'{self.dbase}.{tag}.{project_id}.{ext}' 
+                        for tag, ext in tag_extension_prod
+                    ]
+                    paths.extend(path.join(project_base, project_index, project_id, fn) for fn in file_names)
 
             case Dtype.JXN:
+                project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value)
+    
                 for project_id, project_index in self._project_indices.items():
-                    file_names = list()
-                    project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value, project_index, project_id)
-                    file_names.extend([f'{self.dbase}.{tag}.{project_id}.{self.jxn_format.upper()}.{ext}' for tag, ext in tag_extension_prod])
-                    paths.extend([path.join(project_base, fn) for fn in file_names])
-
-            case Dtype.BW:
-                for project_id, project_index in self._project_indices.items():
-                    file_names = list()
-                    project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value, project_index, project_id)
-                    for sample_id, sample_index in self._sample_indices.items():
-                        file_names.extend(
-                            [f'{sample_index}/{self.dbase}.{tag}.{project_id}_{sample_id}.{ext}' for tag, ext in tag_extension_prod]
-                        )
-                    paths.extend([path.join(project_base, fn) for fn in file_names])
+                    file_names = [
+                        f'{self.dbase}.{tag}.{project_id}.{self.jxn_format.upper()}.{ext}' 
+                        for tag, ext in tag_extension_prod
+                    ]
+                    paths.extend(path.join(project_base, project_index, project_id, fn) for fn in file_names)
 
             case Dtype.GENE | Dtype.EXON:
-                file_names = list()
-                organism = path.basename(base)
-                base = path.join(base, 'annotations', self.dtype.value)
-                file_names.extend([f'{organism}.{self.dtype.value}.{self.annotation.value}.{ext}' for ext in self._extensions])
-                paths.extend([path.join(base, fn) for fn in file_names])
 
+                # annotations (.gtf)
+                annotation_base = path.join(base, 'annotations', self.dtype.value)
+                organism = path.basename(base)
+                annotation_files = [
+                    f'{organism}.{self.dtype.value}.{self.annotation.value}.{ext}'
+                    for ext in self._extensions
+                ]
+                paths.extend(path.join(annotation_base, fn) for fn in annotation_files)
+
+                # counts
+                project_base = path.join(self.root_organism_url, self.data_sources[self.dbase], self.dtype.value)
+                for project_id, project_index in self._project_indices.items():
+                    current_base = path.join(project_base, project_index, project_id)
+                    project_files = [
+                        f'{self.dbase}.{tag}.{project_id}.{self.annotation.value}.gz'
+                        for tag in self._tags
+                    ]
+                    paths.extend(path.join(current_base, fn) for fn in project_files)
+
+            # TODO:
+            #case Dtype.BW:
+                #project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value)
+    
+                #for project_id, project_index in self._project_indices.items():
+                    #for sample_id, sample_index in self._sample_indices.items():
+                        #file_names = [
+                            #path.join(sample_index, f'{self.dbase}.{tag}.{project_id}_{sample_id}.{ext}')
+                            #for tag, ext in tag_extension_prod
+                        #]
+                        #paths.extend(path.join(project_base, project_index, project_id, fn) for fn in file_names)
+
+                #for project_id, project_index in self._project_indices.items():
+                    #file_names = list()
+                    #project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value, project_index, project_id)
+                    #for sample_id, sample_index in self._sample_indices.items():
+                        #file_names.extend(
+                            #[f'{sample_index}/{self.dbase}.{tag}.{project_id}_{sample_id}.{ext}' for tag, ext in tag_extension_prod]
+                        #)
+                    #paths.extend([path.join(project_base, fn) for fn in file_names])
             case _:
                 raise ValueError(f'Invalid dtype: {self.dtype}')
 

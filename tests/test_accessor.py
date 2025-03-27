@@ -18,68 +18,6 @@ outpath = path.dirname(__file__)
     #return 
 
 
-@pytest.mark.parametrize('organism, annotation, expected_shape', [
-    ('human', Annotation.GENCODE_V29, (1377600, 21)),
-    ('mouse', Annotation.GENCODE_V23, (841915, 21))
-])
-def test_project_exon_accessor(organism, annotation, expected_shape):
-
-    # TODO: mock dataframe instead
-    root_url = 'http://duffel.rail.bio/recount3'
-    cache_location = path.join(outpath, 'test_project_jxn_accessor')
-
-    metadata = Metadata(organism=organism, root_url=root_url, cache_location=cache_location)
-    metadata.cache()
-
-    meta_dataframe = metadata.load()
-
-    exon = Project(
-        metadata = meta_dataframe,
-        dbase = 'sra',
-        dtype = Dtype.EXON,
-        annotation = annotation,
-        cache_location = cache_location,
-        jxn_format = None,
-        root_url = root_url
-    )
-
-    exon.cache()
-    exon_dataframe = exon.load()
-
-    assert exon_dataframe.shape == expected_shape
-
-
-@pytest.mark.parametrize('organism, annotation, expected_shape', [
-    ('human', Annotation.GENCODE_V29, (64836, 21)),
-    ('mouse', Annotation.GENCODE_V23, (55420, 21))
-])
-def test_project_gene_accessor(organism, annotation, expected_shape):
-
-    # TODO: mock dataframe instead
-    root_url = 'http://duffel.rail.bio/recount3'
-    cache_location = path.join(outpath, 'test_project_jxn_accessor')
-
-    metadata = Metadata(organism=organism, root_url=root_url, cache_location=cache_location)
-    metadata.cache()
-
-    meta_dataframe = metadata.load()
-
-    gene = Project(
-        metadata = meta_dataframe,
-        dbase = 'sra',
-        dtype = Dtype.GENE,
-        annotation = annotation,
-        cache_location = cache_location,
-        jxn_format = None,
-        root_url = root_url
-    )
-
-    gene.cache()
-    gene_dataframe = gene.load()
-
-    assert gene_dataframe.shape == expected_shape
-
-
 @pytest.mark.parametrize('organism, expected_shape', [
     ('human', (347005, 8)),
     ('mouse', (416859, 8))
@@ -161,3 +99,65 @@ def test_project_metadata_accessor(organism, project, expected_shape):
     meta_dataframe = project.load()
 
     assert meta_dataframe.shape == expected_shape
+
+
+@pytest.mark.parametrize('organism, annotation, expected_shape', [
+    ('human', Annotation.GENCODE_V29, (1377600, 21)),
+    ('mouse', Annotation.GENCODE_V23, (841915, 21))
+])
+def test_project_exon_accessor(organism, annotation, expected_shape):
+
+    # TODO: mock dataframe instead
+    root_url = 'http://duffel.rail.bio/recount3'
+    cache_location = path.join(outpath, 'test_project_jxn_accessor')
+
+    metadata = Metadata(organism=organism, root_url=root_url, cache_location=cache_location)
+    metadata.cache()
+
+    meta_dataframe = metadata.load()
+
+    exon = Project(
+        metadata = meta_dataframe,
+        dbase = 'sra',
+        dtype = Dtype.EXON,
+        annotation = annotation,
+        cache_location = cache_location,
+        jxn_format = None,
+        root_url = root_url
+    )
+
+    exon.cache()
+    exon_dataframe = exon.load()
+
+    assert exon_dataframe.shape == expected_shape
+
+
+@pytest.mark.parametrize('organism, annotation, expected_shape', [
+    ('human', Annotation.GENCODE_V29, (64836, 21)),
+    ('mouse', Annotation.GENCODE_V23, (55420, 21))
+])
+def test_project_gene_accessor(organism, annotation, expected_shape):
+
+    # TODO: mock dataframe instead
+    root_url = 'http://duffel.rail.bio/recount3'
+    cache_location = path.join(outpath, 'test_project_jxn_accessor')
+
+    metadata = Metadata(organism=organism, root_url=root_url, cache_location=cache_location)
+    metadata.cache()
+
+    meta_dataframe = metadata.load()
+
+    gene = Project(
+        metadata = meta_dataframe,
+        dbase = 'sra',
+        dtype = Dtype.GENE,
+        annotation = annotation,
+        cache_location = cache_location,
+        jxn_format = None,
+        root_url = root_url
+    )
+
+    gene.cache()
+    gene_dataframe = gene.load()
+
+    assert gene_dataframe.shape == expected_shape
