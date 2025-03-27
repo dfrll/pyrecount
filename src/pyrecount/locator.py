@@ -98,14 +98,7 @@ class ProjectLocator:
                         )
                     paths.extend([path.join(project_base, fn) for fn in file_names])
 
-            case Dtype.GENE:
-                file_names = list()
-                organism = path.basename(base)
-                base = path.join(base, 'annotations', self.dtype.value)
-                file_names.extend([f'{organism}.{self.dtype.value}.{self.annotation.value}.{ext}' for ext in self._extensions])
-                paths.extend([path.join(base, fn) for fn in file_names])
-
-            case Dtype.EXON:
+            case Dtype.GENE | Dtype.EXON:
                 file_names = list()
                 organism = path.basename(base)
                 base = path.join(base, 'annotations', self.dtype.value)
