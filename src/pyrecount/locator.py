@@ -14,7 +14,7 @@ class ProjectLocator:
             dbase: str,
             dtype: Dtype,
             annotation: Annotation,
-            project: str,
+            project: List[str],
             sample: Optional[Union[str, List[str]]] = None,
             jxn_format: Optional[str] = None
     ):
@@ -27,7 +27,7 @@ class ProjectLocator:
         self.dbase: str = dbase
         self.dtype: Dtype = dtype
         self.annotation: Annotation = annotation
-        self.project: List[str] = [project] if isinstance(project, str) else project 
+        self.project: List[str] = [project] if isinstance(project, str) else project
         self.sample: List[str] = [sample] if isinstance(sample, str) else sample
         self.jxn_format: Optional[str] = jxn_format
 

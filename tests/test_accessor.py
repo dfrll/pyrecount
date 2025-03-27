@@ -1,9 +1,10 @@
 #! /usr/bin/env python3
 import pytest
+import polars as pl
 from os import path
+
 from pyrecount.accessor import Metadata, Project
 from pyrecount.models import Dtype, Annotation
-import polars as pl
 
 outpath = path.dirname(__file__)
 

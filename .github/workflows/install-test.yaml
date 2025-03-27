@@ -29,8 +29,12 @@ jobs:
 
       - name: poetry pytest
         run: |
-          poetry run pytest -s tests
+          poetry run pytest -s tests/test_accessor.py
 
       - name: pyrecount example
         run: |
           poetry run examples/example.py
+
+      - name: poetry pytest known failures
+        run : |
+          poetry run pytest -s tests/test_known_failures.py
