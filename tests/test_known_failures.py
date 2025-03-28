@@ -9,6 +9,64 @@ from pyrecount.models import Dtype, Annotation
 outpath = path.dirname(__file__)
 
 
+#@pytest.mark.xfail(reason='feature not implemented: multi-dbase load support.')
+#@pytest.mark.parametrize('organism, dtype', [
+    #('human', [Dtype., Dtype.] ),
+#])
+#def test_multi_dtype_accessor(organism, project):
+# multi-dbase support
+#project = Project(
+    #metadata = project_meta_dataframe,
+    #dbase = 'sra',
+    #dtype = [Dtype.METADATA, Dtype.JXN],
+    #annotation = Annotation,
+    #cache_location = cache_location,
+    #jxn_format = 'all',
+#)
+
+#project.cache()
+#df = project.load()
+
+#print(df)
+
+
+@pytest.mark.xfail(reason='CI failure, not reproducible locally.'
+                   "pl.concat([cache_dataframe, project_dataframe], how='vertical')")
+@pytest.mark.parametrize('organism, project, expected_shape', [
+    ('human', ['SRP009615', 'SRP075759'], (43, 173))
+])
+def test_multi_project_metadata_accessor(organism, project, expected_shape):
+
+    # XXX: mock dataframe instead
+    root_url = 'http://duffel.rail.bio/recount3'
+    cache_location = path.join(outpath, 'test_multi_project_metadata_accessor')
+
+    recount_metadata = Metadata(organism=organism, root_url=root_url, cache_location=cache_location)
+    recount_metadata.cache()
+
+    recount_meta_dataframe = recount_metadata.load()
+
+    project_meta_dataframe = recount_meta_dataframe.filter(
+        (pl.col('project').is_in(project))
+    )
+
+    project = Project(
+        metadata = project_meta_dataframe,
+        dbase = 'sra',
+        organism = organism,
+        dtype = [Dtype.METADATA],
+        cache_location = cache_location,
+        annotation = Annotation,
+        jxn_format = None,
+        root_url = root_url
+    )
+
+    project.cache()
+    project_dataframe = project.load()
+
+    assert project_dataframe.shape == expected_shape
+
+
 @pytest.mark.xfail(reason='feature not implemented: multi-project jxn load support.')
 @pytest.mark.parametrize('organism, project, expected_mm_shape, expected_shape', [
     ('human', ['SRP009615', 'SRP075759'], (562896, 43), (562896, 10)),
