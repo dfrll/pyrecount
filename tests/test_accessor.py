@@ -10,12 +10,14 @@ from pprint import pprint
 
 outpath = path.dirname(__file__)
 
-# TODO: add gene.get_read_counts to testing
-# TODO: multi-project support for jxn, exon, gene
+# TODO: multi-dtype support
+# TODO: multi-project support for jxn, exon, gene, read_counts
 # TODO: transform raw counts
+# TODO: add gene.get_read_counts to testing
 # TODO: profile transpose vs pivot in counts transform methods
 # TODO: test dbs other than sra
 # TODO: handle BigWig
+# TODO: expose Lazyframes on parameter value: lazy=True
 
 
 @pytest.mark.parametrize('organism, expected_shape', [

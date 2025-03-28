@@ -29,7 +29,9 @@ project_meta_dataframe = recount_meta_dataframe.filter(
 
 print(project_meta_dataframe)
 
-dtype = Dtype.JXN
+
+# project metadata
+dtype = [Dtype.METADATA]
 
 project = Project(
     metadata = project_meta_dataframe,
@@ -46,14 +48,15 @@ print(project_dataframe)
 
 
 # project junctions
-dtype = Dtype.JXN
+dtype = [Dtype.JXN]
 
 project_jxn = Project(
     metadata = project_dataframe,
     dbase = dbase,
     organism = organism,
     dtype = dtype,
-    cache_location = cache_location
+    cache_location = cache_location,
+    jxn_format = 'all'
 )
 
 project_jxn.cache()
@@ -64,7 +67,7 @@ print(jxn_dataframe)
 
 
 # project exon annotation, raw coverage counts
-dtype = Dtype.EXON
+dtype = [Dtype.EXON]
 annotation = Annotation.GENCODE_V29
 
 exon = Project(
@@ -84,7 +87,7 @@ print(exon_raw_counts)
 
 
 # project gene annotation, raw coverage counts
-dtype = Dtype.GENE
+dtype = [Dtype.GENE]
 annotation = Annotation.GENCODE_V29
 
 gene = Project(
@@ -101,9 +104,3 @@ gene_annotation, gene_raw_counts = gene.load()
 
 print(gene_annotation)
 print(gene_raw_counts)
-
-
-# read counts
-read_counts = gene.get_read_counts(gene_raw_counts, project_meta_dataframe)
-
-print(read_counts)

@@ -97,34 +97,34 @@ class Project():
                     return self._gene_load()
                 case Dtype.EXON:
                     return self._exon_load()
-                ##case Dtype.BW:
-                    ### TODO: sending cache not necessary
-                    ### XXX: expose BigWig URLs rather than caching
-                    ##return self._bw_load(cache, cache_resources)
+                #case Dtype.BW:
+                    ## XXX: expose BigWig URLs rather than caching
+                    #return self._bw_load()
                 case _:
                     raise ValueError(f'Invalid dtype: {self.dtype}')
 
 
-    def get_read_counts(self, raw_counts: pl.DataFrame, meta_dataframe: pl.DataFrame) -> pl.DataFrame:
-        # use pivot rather than transpose for external_id tracking
-        # XXX: use variable_name and value_name in pivot function calls
-        counts = raw_counts \
-            .unpivot(index='gene_id') \
-            .pivot(on='gene_id', index='variable', values='value') \
-            .sort(by='variable')
+    # XXX: implement multi-project support before this method
+    #def get_read_counts(self, raw_counts: pl.DataFrame, meta_dataframe: pl.DataFrame) -> pl.DataFrame:
+        ## use pivot rather than transpose for external_id tracking
+        ## XXX: use variable_name and value_name in pivot function calls
+        #counts = raw_counts \
+            #.unpivot(index='gene_id') \
+            #.pivot(on='gene_id', index='variable', values='value') \
+            #.sort(by='variable')
 
-        meta_dataframe = meta_dataframe \
-            .with_columns(
-                pl.col('star.average_mapped_length').cast(pl.Float64)
-            ).sort(by='external_id')
+        #meta_dataframe = meta_dataframe \
+            #.with_columns(
+                #pl.col('star.average_mapped_length').cast(pl.Float64)
+            #).sort(by='external_id')
 
-        counts = counts.with_columns(
-            (counts[col] / meta_dataframe['star.average_mapped_length']).alias(col)
-            for col in counts.columns if col != 'variable'
-        ).unpivot(index='variable', variable_name='gene_id').\
-        pivot(on='variable', index='gene_id', values='value')
+        #counts = counts.with_columns(
+            #(counts[col] / meta_dataframe['star.average_mapped_length']).alias(col)
+            #for col in counts.columns if col != 'variable'
+        #).unpivot(index='variable', variable_name='gene_id').\
+        #pivot(on='variable', index='gene_id', values='value')
 
-        return counts
+        #return counts
 
 
     def _metadata_load(self):
