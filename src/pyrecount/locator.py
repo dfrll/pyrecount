@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 from os import path
 from itertools import product
-from .models import Dtype, Annotation, Tags
+from .models import Dtype, Annotation, Tags, Extensions
 from typing import Union, Optional, List, Dict
 
 from pprint import pprint
@@ -12,7 +12,7 @@ class ProjectLocator:
             root_organism_url: str,
             data_sources: Dict[str, str],
             dbase: str,
-            dtype: Dtype,
+            dtype: List[Dtype],
             annotation: Annotation,
             project: List[str],
             sample: Optional[Union[str, List[str]]] = None,
@@ -25,7 +25,7 @@ class ProjectLocator:
         self.root_organism_url: str = root_organism_url
         self.data_sources: Dict[str, str] = data_sources
         self.dbase: str = dbase
-        self.dtype: Dtype = dtype
+        self.dtype: List[Dtype] = [dtype] if isinstance(dtype, str) else dtype
         self.annotation: Annotation = annotation
         self.project: List[str] = [project] if isinstance(project, str) else project
         self.sample: List[str] = [sample] if isinstance(sample, str) else sample
@@ -71,10 +71,12 @@ class ProjectLocator:
     def fpaths(self) -> List[str]:
         paths = list()
         base = path.join(self.root_organism_url)
+
         # TODO: replace _extensions with .models.extensions
         tag_extension_prod = list(product(self._tags, self._extensions))
 
         match self.dtype:
+
             case Dtype.METADATA:
 
                 project_base = path.join(base, self.data_sources[self.dbase], self.dtype.value)
@@ -98,8 +100,8 @@ class ProjectLocator:
             case Dtype.GENE | Dtype.EXON:
 
                 # annotations (.gtf)
-                annotation_base = path.join(base, 'annotations', self.dtype.value)
                 organism = path.basename(base)
+                annotation_base = path.join(base, 'annotations', self.dtype.value)
                 annotation_files = [
                     f'{organism}.{self.dtype.value}.{self.annotation.value}.{ext}'
                     for ext in self._extensions

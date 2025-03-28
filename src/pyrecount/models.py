@@ -20,6 +20,7 @@ class Dtype(Enum):
     BW = 'base_sums'
 
 class Tags(Enum):
+    RECOUNT_METADATA = 'recount_project'
     METADATA = [
         'recount_project',
         'recount_qc',

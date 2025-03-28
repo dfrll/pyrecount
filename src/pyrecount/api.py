@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 import logging
+from os import path
 from typing import Optional, Dict
-from os.path import join, basename
 from .models import HOMES_INDEX
 from requests import Response, get
 from requests.exceptions import RequestException
@@ -13,18 +13,19 @@ class EndpointConnector:
         self.organism: str = organism
         self.root_url: str = root_url
 
-        index = join(self.root_organism_url, HOMES_INDEX)
+        index = path.join(self.root_organism_url, HOMES_INDEX)
         resp = self._validate_endpoint(endpoint=index)
         if resp:
             self._set_data_sources(resp)
 
     @property
     def root_organism_url(self) -> str:
-        return join(self.root_url, self.organism)
+        return path.join(self.root_url, self.organism)
 
     def _set_data_sources(self, resp: Response):
         self.data_sources: Dict[str, str] = {
-            basename(dsource):dsource for dsource in resp.text.strip().splitlines()
+            path.basename(dsource):dsource
+            for dsource in resp.text.strip().splitlines()
         }
 
     def _validate_endpoint(self, endpoint: str) -> Optional[Response]:
