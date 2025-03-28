@@ -50,13 +50,8 @@ class Project():
         self.jxn_format: Optional[str] = jxn_format
         self.root_url: str = root_url
 
-        #self.dbase: List[str] = self.metadata['file_source'].unique().to_list()
-        #self.organism: List[str] = self.metadata['organism'].unique().to_list()
         self.project: List[str] = self.metadata['project'].unique().to_list()
         self.sample: List[str] = self.metadata['external_id'].unique().to_list()
-
-        #self.organism = self.metadata['organism'].unique().first()
-        #self.organism_cache_location: str = path.join(self.cache_location, self.organism) if self.cache_location else None
         self.endpoints = EndpointConnector(root_url=self.root_url, organism=self.organism)
 
 
@@ -69,9 +64,7 @@ class Project():
             annotation = self.annotation,
             project = self.project,
             sample = self.sample,
-            jxn_format = self.jxn_format
-        )
-
+            jxn_format = self.jxn_format)
         return project.fpaths
 
 
@@ -92,19 +85,18 @@ class Project():
     def load(self) -> Union[pl.DataFrame, Tuple[pl.DataFrame, pl.DataFrame]]:
 
         cache: BiocFileCacheType = BiocFileCache(self.cache_location)
-        cache_resources: List[models.Resource] = cache.list_resources()
+        self.cache_resources: List[models.Resource] = cache.list_resources()
 
         for dtype in self.dtype:
             match dtype:
                 case Dtype.METADATA:
-                    return self._metadata_load(cache_resources)
+                    return self._metadata_load()
                 case Dtype.JXN:
-                    # TODO: sending `cache` not necessary
-                    return self._jxn_load(cache_resources)
+                    return self._jxn_load()
                 case Dtype.GENE:
-                    return self._gene_load(cache_resources)
+                    return self._gene_load()
                 case Dtype.EXON:
-                    return self._exon_load(cache_resources)
+                    return self._exon_load()
                 ##case Dtype.BW:
                     ### TODO: sending cache not necessary
                     ### XXX: expose BigWig URLs rather than caching
@@ -135,14 +127,14 @@ class Project():
         return counts
 
 
-    def _metadata_load(self, cache_resources: List[models.Resource]):
+    def _metadata_load(self):
 
         cache_dataframe = None
         join_cols = ['rail_id', 'external_id', 'study']
 
         for project_id in self.project:
             project_dataframe = None
-            for resource in cache_resources:
+            for resource in self.cache_resources:
                 if project_id not in resource.rname:
                     continue
                 if self.dbase not in resource.rname:
@@ -207,10 +199,10 @@ class Project():
         return mm_dataframe.rename(dict(zip(mm_dataframe.columns, ids)))
 
 
-    def _jxn_load(self, cache_resources: List[models.Resource]) -> Tuple[pl.DataFrame, pl.DataFrame]:
+    def _jxn_load(self) -> Tuple[pl.DataFrame, pl.DataFrame]:
 
         for project_id in self.project:
-            for resource in cache_resources:
+            for resource in self.cache_resources:
                 if project_id not in resource.rname:
                     continue
                 if self.dbase not in resource.rname:
@@ -226,7 +218,7 @@ class Project():
                     # the samples in the MM jxn table are not in the same order as the metadata.
                     # this is the reason for calling self._id_matrix_market().
                     mm_array = mmread(resource.rpath).toarray()
-                    mm_dataframe = self._id_matrix_market(pl.from_numpy(mm_array), cache_resources)
+                    mm_dataframe = self._id_matrix_market(pl.from_numpy(mm_array), self.cache_resources)
                 else:
                     try:
                         current_dataframe = pl.read_csv(resource.rpath, separator='\t', infer_schema=False)
@@ -245,9 +237,9 @@ class Project():
         return mm_dataframe, cache_dataframe
 
 
-    def _bw_load(self, cache: BiocFileCacheType, cache_resources: List[models.Resource]) -> Tuple[pl.DataFrame, pl.DataFrame]:
+    def _bw_load(self) -> pl.DataFrame:
         # XXX: expose BigWig URLs rather than caching
-        for resource in cache_resources:
+        for resource in self.cache_resources:
             if self.dbase not in resource.rname:
                 continue
             #bw: bigWigFile = pyBigWig.open(resource.rpath)
