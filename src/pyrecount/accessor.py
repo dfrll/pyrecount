@@ -280,8 +280,8 @@ class Project():
 
 
     # TODO: abstract method GENE, EXON load
-    def _gene_load(self, cache_resources: List[models.Resource]) -> pl.DataFrame:
-        for resource in cache_resources:
+    def _gene_load(self) -> pl.DataFrame:
+        for resource in self.cache_resources:
             if self.annotation.value in resource.rname:
                 if any(resource.rname.endswith(ext) for ext in Extensions.GENE.value):
                     annotation = self._read_gtf(resource.rpath)
@@ -291,8 +291,8 @@ class Project():
 
 
     # TODO: abstract method GENE, EXON load
-    def _exon_load(self, cache_resources: List[models.Resource]) -> pl.DataFrame:
-        for resource in cache_resources:
+    def _exon_load(self) -> pl.DataFrame:
+        for resource in self.cache_resources:
             if self.annotation.value in resource.rname:
                 if any(resource.rname.endswith(ext) for ext in Extensions.EXON.value):
                     annotation = self._read_gtf(resource.rpath)
