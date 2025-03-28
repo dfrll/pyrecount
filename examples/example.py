@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 import polars as pl
-from pyrecount.models import Dtype, Annotation, Extensions
+from pyrecount.models import Dtype, Annotation
 from pyrecount.accessor import Metadata, Project
 
 
@@ -23,27 +23,26 @@ n_sample_project = recount_meta_dataframe.group_by('project').len()
 print(n_sample_project)
 
 # subset
-project_dataframe = recount_meta_dataframe.filter(
-    (pl.col('project').is_in(['SRP009615']))
+project_meta_dataframe = recount_meta_dataframe.filter(
+    (pl.col('project').is_in(['SRP009615', 'SRP075759']))
 )
 
-print(project_dataframe)
+print(project_meta_dataframe)
 
+dtype = Dtype.JXN
 
-# project metadata
-dtype = Dtype.METADATA
-
-project_metadata = Project(
-    metadata = project_dataframe,
+project = Project(
+    metadata = project_meta_dataframe,
     dbase = dbase,
+    organism = organism,
     dtype = dtype,
     cache_location = cache_location
 )
 
-project_metadata.cache()
-project_meta_dataframe = project_metadata.load()
+project.cache()
+project_dataframe = project.load()
 
-print(project_meta_dataframe)
+print(project_dataframe)
 
 
 # project junctions
@@ -52,9 +51,9 @@ dtype = Dtype.JXN
 project_jxn = Project(
     metadata = project_dataframe,
     dbase = dbase,
+    organism = organism,
     dtype = dtype,
-    cache_location = cache_location,
-    jxn_format = 'ALL'
+    cache_location = cache_location
 )
 
 project_jxn.cache()
@@ -71,6 +70,7 @@ annotation = Annotation.GENCODE_V29
 exon = Project(
     metadata = project_dataframe,
     dbase = dbase,
+    organism = organism,
     dtype = dtype,
     cache_location = cache_location,
     annotation = annotation
@@ -90,6 +90,7 @@ annotation = Annotation.GENCODE_V29
 gene = Project(
     metadata = project_dataframe,
     dbase = dbase,
+    organism = organism,
     dtype = dtype,
     cache_location = cache_location,
     annotation = annotation
@@ -97,8 +98,12 @@ gene = Project(
 
 gene.cache()
 gene_annotation, gene_raw_counts = gene.load()
-read_counts = gene.get_read_counts(gene_raw_counts, project_meta_dataframe)
 
 print(gene_annotation)
 print(gene_raw_counts)
+
+
+# read counts
+read_counts = gene.get_read_counts(gene_raw_counts, project_meta_dataframe)
+
 print(read_counts)
