@@ -24,7 +24,7 @@ print(n_sample_project)
 
 # subset
 project_meta_dataframe = recount_meta_dataframe.filter(
-    (pl.col('project').is_in(['SRP009615', 'SRP075759']))
+    (pl.col('project').is_in(['SRP009615']))
 )
 
 print(project_meta_dataframe)
