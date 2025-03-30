@@ -1,0 +1,40 @@
+name: pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  install-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+
+      - name: poetry install
+        run: |
+          poetry install
+
+      - name: poetry pytest
+        run: |
+          poetry run pytest -s tests/test_accessor.py
+
+      - name: pyrecount example
+        run: |
+          poetry run examples/example.py
+
+      - name: poetry pytest known failures
+        run : |
+          poetry run pytest -s tests/test_known_failures.py
