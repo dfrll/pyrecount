@@ -20,6 +20,7 @@ from .utils import (
     download_url_to_path,
 )
 
+from pprint import pprint
 
 log = logging.getLogger()
 
@@ -118,6 +119,10 @@ class Project:
                 if self.dbase not in url:
                     continue
                 if Dtype.METADATA.value not in url:
+                    continue
+
+                # skip metadata pred if loading gtex
+                if self.dbase == "gtex" and "pred" in url:
                     continue
 
                 fpath = urlparse(url).path.lstrip("/")

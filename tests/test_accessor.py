@@ -27,10 +27,15 @@ def test_recount_metadata_accessor(organism, expected_shape):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "organism, project, expected_shape",
-    [("human", ["SRP009615", "SRP075759"], (43, 174))],
+    "organism, dbase, project, expected_shape",
+    [
+        ("human", "sra", ["SRP009615", "SRP075759"], (43, 174)),
+        ["human", "gtex", ["FALLOPIAN_TUBE", "CERVIX_UTERI"], (28, 197)],
+    ],
 )
-async def test_multi_project_metadata_accessor(organism, project, expected_shape):
+async def test_multi_project_metadata_accessor(
+    organism, dbase, project, expected_shape
+):
     root_url = "http://duffel.rail.bio/recount3"
     recount_metadata = Metadata(organism=organism, root_url=root_url)
 
@@ -46,7 +51,7 @@ async def test_multi_project_metadata_accessor(organism, project, expected_shape
 
     project = Project(
         metadata=project_meta_dataframe,
-        dbase="sra",
+        dbase=dbase,
         organism=organism,
         dtype=[dtype],
         annotation=Annotation,
