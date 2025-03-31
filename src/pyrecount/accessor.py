@@ -122,7 +122,7 @@ class Project:
                     continue
 
                 # skip metadata pred if loading gtex
-                if self.dbase == "gtex" and "pred" in url:
+                if self.dbase in ["gtex", "tcga"] and "pred" in url:
                     continue
 
                 fpath = urlparse(url).path.lstrip("/")

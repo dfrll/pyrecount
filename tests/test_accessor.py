@@ -31,6 +31,7 @@ def test_recount_metadata_accessor(organism, expected_shape):
     [
         ("human", "sra", ["SRP009615", "SRP075759"], (43, 174)),
         ["human", "gtex", ["FALLOPIAN_TUBE", "CERVIX_UTERI"], (28, 197)],
+        ("human", "tcga", ["CHOL", "DLBC"], (93, 936)),
     ],
 )
 async def test_multi_project_metadata_accessor(
