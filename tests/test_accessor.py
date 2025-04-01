@@ -72,7 +72,7 @@ async def test_multi_project_metadata_accessor(
     "organism, project, expected_mm_shape, expected_shape",
     [
         ("human", ["SRP009615", "SRP075759"], (436480, 43), (436480, 20)),
-        ("mouse", ["SRP111354"], (308775, 15), (308775, 10)),
+        ("mouse", ["SRP111354", "SRP200978"], (325976, 27), (325976, 20)),
     ],
 )
 async def test_multi_project_jxn_accessor(
