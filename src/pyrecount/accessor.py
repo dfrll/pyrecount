@@ -116,24 +116,21 @@ class Project:
             for url in self._get_project_urls(Dtype.METADATA):
                 if project_id not in url:
                     continue
+
                 if self.dbase not in url:
                     continue
                 if Dtype.METADATA.value not in url:
                     continue
 
-                # skip metadata pred if loading gtex
+                # skip metadata pred if loading gtex or tcga
                 if self.dbase in ["gtex", "tcga"] and "pred" in url:
                     continue
 
                 fpath = urlparse(url).path.lstrip("/")
 
-                try:
-                    current_dataframe = pl.read_csv(
-                        fpath, separator="\t", infer_schema=False
-                    )
-                except Exception as e:
-                    logging.error(f"Error reading file {fpath}: {e}")
-                    return
+                current_dataframe = pl.read_csv(
+                    fpath, separator="\t", infer_schema=False
+                )
 
                 try:
                     if project_dataframe is None:
@@ -152,9 +149,13 @@ class Project:
                 cache_dataframe, project_dataframe = self._add_missing_columns(
                     cache_dataframe, project_dataframe
                 )
-                cache_dataframe = pl.concat(
-                    [cache_dataframe, project_dataframe], how="vertical"
-                )
+                try:
+                    cache_dataframe = pl.concat(
+                        [cache_dataframe, project_dataframe], how="vertical"
+                    )
+                except Exception as e:
+                    logging.error(f"Error concatenating {fpath} to metadata: {e}")
+                    return
 
         return replace_organism(cache_dataframe).unique()
 
@@ -173,21 +174,14 @@ class Project:
             df2 = df2.with_columns(pl.lit(None).cast(df1_types[col]).alias(col))
         return df1, df2
 
-    def _id_matrix_market(
-        self, mm_dataframe: pl.DataFrame, url_list: List[str]
-    ) -> pl.DataFrame:
-        """set column names to sample identifiers"""
-        ids: List[str] = list()
-        for url in url_list:
-            if "ID" not in url:
-                continue
-            fpath = urlparse(url).path.lstrip("/")
-            ids = pl.read_csv(fpath)["rail_id"].cast(pl.String).to_list()
-        return mm_dataframe.rename(dict(zip(mm_dataframe.columns, ids)))
-
     def _jxn_load(self) -> Tuple[pl.DataFrame, pl.DataFrame]:
+        cache_mm_dataframe: Optional[pl.DataFrame] = None
+        cache_dataframe: Optional[pl.DataFrame] = None
+
         for project_id in self.project_ids:
             url_list = self._get_project_urls(Dtype.JXN)
+
+            # rename junction dataframe columns using project ID + rail IDs
             for url in url_list:
                 if project_id not in url:
                     continue
@@ -195,8 +189,22 @@ class Project:
                     continue
                 if Dtype.JXN.value not in url:
                     continue
+                fpath = urlparse(url).path.lstrip("/")
+                if "ID" in fpath:
+                    ids = [
+                        f"{project_id}_{rail_id}"
+                        for rail_id in pl.read_csv(fpath)["rail_id"]
+                        .cast(pl.String)
+                        .to_list()
+                    ]
 
-                # ids skipped until call to self._id_matrix_market()
+            for url in url_list:
+                if project_id not in url:
+                    continue
+                if self.dbase not in url:
+                    continue
+                if Dtype.JXN.value not in url:
+                    continue
                 if "ID" in url:
                     continue
 
@@ -204,21 +212,43 @@ class Project:
 
                 if "MM" in url:
                     # the samples in the MM jxn table are not in the same order as the metadata.
-                    # this is the reason for calling self._id_matrix_market().
-                    mm_array = mmread(fpath).toarray()
-                    mm_dataframe = self._id_matrix_market(
-                        pl.from_numpy(mm_array), url_list
+                    # this is the reason for renaming using rail IDs.
+                    project_mm_dataframe = pl.from_numpy(mmread(fpath).toarray())
+                    project_mm_dataframe = project_mm_dataframe.rename(
+                        dict(zip(project_mm_dataframe.columns, ids))
                     )
-                else:
-                    try:
-                        current_dataframe = pl.read_csv(
-                            fpath, separator="\t", infer_schema=False
-                        )
-                    except Exception as e:
-                        logging.error(f"Error reading file {fpath}: {e}")
-                        return
 
-        return mm_dataframe, current_dataframe
+                    if cache_mm_dataframe is None:
+                        cache_mm_dataframe = project_mm_dataframe
+                    else:
+                        cache_mm_dataframe = pl.concat(
+                            [cache_mm_dataframe, project_mm_dataframe], how="horizontal"
+                        )
+
+                else:
+                    current_dataframe = pl.read_csv(
+                        fpath, separator="\t", infer_schema=False
+                    )
+                    current_dataframe = current_dataframe.rename(
+                        dict(
+                            zip(
+                                current_dataframe.columns,
+                                [
+                                    f"{project_id}_{colname}"
+                                    for colname in current_dataframe.columns
+                                ],
+                            )
+                        )
+                    )
+                    if cache_dataframe is None:
+                        cache_dataframe = current_dataframe
+
+                    else:
+                        cache_dataframe = pl.concat(
+                            [cache_dataframe, current_dataframe], how="horizontal"
+                        )
+
+        return cache_mm_dataframe, cache_dataframe
 
     def _bw_load(self) -> pl.DataFrame:
         for resource in self.cache_resources:
@@ -282,6 +312,17 @@ class Project:
         )
         return counts_dataframe
 
+    # def _gene_exon_load(self, dtype: Dtype):
+    # for url in self._get_project_urls(dtype):
+    # fpath = urlparse(url).path.lstrip("/")
+    # if self.annotation.value in fpath:
+    # if any(fpath.endswith(ext) for ext in Extensions.GENE.value):
+    # annotation = self._read_gtf(fpath)
+    # if fpath.endswith(f"{self.annotation.value}.gz"):
+    # counts = self._read_counts(fpath)
+    # return annotation, counts
+    # return
+
     def _gene_load(self) -> pl.DataFrame:
         for url in self._get_project_urls(Dtype.GENE):
             fpath = urlparse(url).path.lstrip("/")
@@ -336,7 +377,7 @@ class Metadata:
                 continue
             try:
                 fpath = urlparse(url).path.lstrip("/")
-                df = pl.read_csv(path.join(fpath), separator=sep)
+                df = pl.read_csv(path.join(fpath), separator=sep, infer_schema=None)
             except Exception as e:
                 logging.error(f"Error reading file {fpath}: {e}")
                 return

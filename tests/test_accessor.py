@@ -5,10 +5,11 @@ import polars as pl
 from pyrecount.accessor import Metadata, Project
 from pyrecount.models import Dtype, Annotation
 
-# TODO: test dbs other than sra
+# TODO: test dbs other than sra for jxn, exon, gene dtypes
+# TODO: multi-project support for exon, gene dtypes
 # TODO: handle BigWig
+# TODO: define dataframe schemas
 # TODO: expose Lazyframes
-# TODO: multi-project support for jxn, exon, gene dtypes
 # TODO: transform raw counts
 
 
@@ -70,13 +71,12 @@ async def test_multi_project_metadata_accessor(
 @pytest.mark.parametrize(
     "organism, project, expected_mm_shape, expected_shape",
     [
-        ("human", ["SRP009615"], (281448, 12), (281448, 10)),
-        ("human", ["SRP075759"], (436480, 31), (436480, 10)),
+        ("human", ["SRP009615", "SRP075759"], (436480, 43), (436480, 20)),
         ("mouse", ["SRP111354"], (308775, 15), (308775, 10)),
     ],
 )
-async def test_project_jxn_accessor(
-    organism, project, expected_shape, expected_mm_shape
+async def test_multi_project_jxn_accessor(
+    organism, project, expected_mm_shape, expected_shape
 ):
     root_url = "http://duffel.rail.bio/recount3"
     recount_metadata = Metadata(organism=organism, root_url=root_url)
