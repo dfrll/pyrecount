@@ -312,17 +312,6 @@ class Project:
         )
         return counts_dataframe
 
-    # def _gene_exon_load(self, dtype: Dtype):
-    # for url in self._get_project_urls(dtype):
-    # fpath = urlparse(url).path.lstrip("/")
-    # if self.annotation.value in fpath:
-    # if any(fpath.endswith(ext) for ext in Extensions.GENE.value):
-    # annotation = self._read_gtf(fpath)
-    # if fpath.endswith(f"{self.annotation.value}.gz"):
-    # counts = self._read_counts(fpath)
-    # return annotation, counts
-    # return
-
     def _gene_load(self) -> pl.DataFrame:
         for url in self._get_project_urls(Dtype.GENE):
             fpath = urlparse(url).path.lstrip("/")

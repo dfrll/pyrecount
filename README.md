@@ -1,3 +1,23 @@
+# pyrecount
+
+## Installation
+
+You can install `pyrecount` either with with **pip** (recommended for general usage) or **poetry** (recommended for development).
+
+### Option 1: Install with pip
+
+```
+pip install git+https://github.com/dfrll/pyrecount.git
+```
+
+### Option 2: Install with poetry
+
+```
+pip clone https://github.com/dfrll/pyrecount.git
+cd pyrecount
+poetry install
+```
+
 ## Examples
 
 ``` python
