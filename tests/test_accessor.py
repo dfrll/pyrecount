@@ -6,11 +6,11 @@ from pyrecount.accessor import Metadata, Project
 from pyrecount.models import Dtype, Annotation
 
 # TODO: test dbs other than sra for jxn, exon, gene dtypes
-# TODO: multi-project support for exon, gene dtypes
 # TODO: handle BigWig
+# TODO: transform raw counts
+# TODO: multi-project support for exon, gene dtypes
 # TODO: define dataframe schemas
 # TODO: expose Lazyframes
-# TODO: transform raw counts
 
 
 @pytest.mark.parametrize(
@@ -147,8 +147,8 @@ async def test_project_metadata_accessor(organism, project, expected_shape):
 @pytest.mark.parametrize(
     "organism, project, annotation, expected_annotation_shape, expected_counts_shape",
     [
-        ("human", ["SRP009615"], Annotation.GENCODE_V29, (1377600, 21), (1377601, 13)),
-        ("mouse", ["SRP111354"], Annotation.GENCODE_V23, (841915, 21), (841916, 16)),
+        ("human", ["SRP009615"], Annotation.GENCODE_V29, (1377600, 21), (1377601, 16)),
+        ("mouse", ["SRP111354"], Annotation.GENCODE_V23, (841915, 21), (841916, 19)),
     ],
 )
 async def test_project_exon_accessor(
@@ -181,8 +181,7 @@ async def test_project_exon_accessor(
     exon_annotation, exon_counts = exon.load(dtype)
 
     assert exon_annotation.shape == expected_annotation_shape
-    # see tests/test_known_failures.py
-    # assert exon_counts == expected_counts_shape
+    assert exon_counts.shape == expected_counts_shape
 
 
 @pytest.mark.asyncio

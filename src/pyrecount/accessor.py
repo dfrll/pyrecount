@@ -303,7 +303,6 @@ class Project:
             ]
         )
 
-    # TODO: extract first column (chromosome|start_1base|end_1ba…)
     def _read_counts(self, rname: str):
         counts_dataframe = pl.read_csv(
             rname,
@@ -311,17 +310,6 @@ class Project:
             separator="\t",
         )
         return counts_dataframe
-
-    # def _gene_exon_load(self, dtype: Dtype):
-    # for url in self._get_project_urls(dtype):
-    # fpath = urlparse(url).path.lstrip("/")
-    # if self.annotation.value in fpath:
-    # if any(fpath.endswith(ext) for ext in Extensions.GENE.value):
-    # annotation = self._read_gtf(fpath)
-    # if fpath.endswith(f"{self.annotation.value}.gz"):
-    # counts = self._read_counts(fpath)
-    # return annotation, counts
-    # return
 
     def _gene_load(self) -> pl.DataFrame:
         for url in self._get_project_urls(Dtype.GENE):
@@ -341,6 +329,24 @@ class Project:
                     annotation = self._read_gtf(fpath)
                 if url.endswith(f"{self.annotation.value}.gz"):
                     counts = self._read_counts(fpath)
+                    # TODO: extract first column (chromosome|start_1base|end_1ba…)
+                    exon_colname = counts.columns[0]
+                    exon_fields = ["chrom", "start", "end", "strand"]
+                    counts = (
+                        counts.with_columns(
+                            pl.col(exon_colname)
+                            .str.split_exact("|", 4)
+                            .struct.rename_fields(exon_fields)
+                            .alias("exon_parts")
+                        )
+                        .unnest("exon_parts")
+                        .drop(exon_colname)
+                    )
+                    reorder_cols = exon_fields + [
+                        col for col in counts.columns if col not in set(exon_fields)
+                    ]
+                    counts = counts.select(reorder_cols)
+
         return annotation, counts
 
 
