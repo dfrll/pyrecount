@@ -303,7 +303,6 @@ class Project:
             ]
         )
 
-    # TODO: extract first column (chromosome|start_1base|end_1ba…)
     def _read_counts(self, rname: str):
         counts_dataframe = pl.read_csv(
             rname,
@@ -330,6 +329,24 @@ class Project:
                     annotation = self._read_gtf(fpath)
                 if url.endswith(f"{self.annotation.value}.gz"):
                     counts = self._read_counts(fpath)
+                    # TODO: extract first column (chromosome|start_1base|end_1ba…)
+                    exon_colname = counts.columns[0]
+                    exon_fields = ["chrom", "start", "end", "strand"]
+                    counts = (
+                        counts.with_columns(
+                            pl.col(exon_colname)
+                            .str.split_exact("|", 4)
+                            .struct.rename_fields(exon_fields)
+                            .alias("exon_parts")
+                        )
+                        .unnest("exon_parts")
+                        .drop(exon_colname)
+                    )
+                    reorder_cols = exon_fields + [
+                        col for col in counts.columns if col not in set(exon_fields)
+                    ]
+                    counts = counts.select(reorder_cols)
+
         return annotation, counts
 
 
