@@ -178,10 +178,9 @@ class Project:
         cache_mm_dataframe: Optional[pl.DataFrame] = None
         cache_dataframe: Optional[pl.DataFrame] = None
 
-        for project_id in self.project_ids:
-            url_list = self._get_project_urls(Dtype.JXN)
+        url_list = self._get_project_urls(Dtype.JXN)
 
-            # rename junction dataframe columns using project ID + rail IDs
+        for project_id in self.project_ids:
             for url in url_list:
                 if project_id not in url:
                     continue
@@ -228,24 +227,13 @@ class Project:
                 else:
                     current_dataframe = pl.read_csv(
                         fpath, separator="\t", infer_schema=False
-                    )
-                    current_dataframe = current_dataframe.rename(
-                        dict(
-                            zip(
-                                current_dataframe.columns,
-                                [
-                                    f"{project_id}_{colname}"
-                                    for colname in current_dataframe.columns
-                                ],
-                            )
-                        )
-                    )
+                    ).with_columns(pl.lit(project_id).alias("project_id"))
+
                     if cache_dataframe is None:
                         cache_dataframe = current_dataframe
-
                     else:
                         cache_dataframe = pl.concat(
-                            [cache_dataframe, current_dataframe], how="horizontal"
+                            [cache_dataframe, current_dataframe], how="vertical"
                         )
 
         return cache_mm_dataframe, cache_dataframe
