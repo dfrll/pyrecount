@@ -13,7 +13,7 @@ pip install git+https://github.com/dfrll/pyrecount.git
 ### Option 2: Install with poetry
 
 ```
-pip clone https://github.com/dfrll/pyrecount.git
+git clone https://github.com/dfrll/pyrecount.git
 cd pyrecount
 poetry install
 ```
