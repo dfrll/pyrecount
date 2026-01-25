@@ -25,6 +25,15 @@ from pprint import pprint
 
 log = logging.getLogger()
 
+# caching policy
+CACHEABLE_DTYPES = {
+    Dtype.METADATA,
+    Dtype.JXN,
+    Dtype.GENE,
+    Dtype.EXON,
+    # Dtype.BW
+}
+
 
 @dataclass
 class Project:
@@ -84,18 +93,22 @@ class Project:
         return project.urls
 
     async def cache(self) -> None:
-        tasks = list()
-        url_list = list()
+        tasks: List[asyncio.Task] = list()
+
         for dtype in self.dtype:
-            url_list.extend(self._get_project_urls(dtype))
-            for url in url_list:
+            if dtype not in CACHEABLE_DTYPES:
+                continue
+
+            for url in self._get_project_urls(dtype):
                 fpath = urlparse(url).path.lstrip("/")
                 if path.exists(fpath):
                     continue
+
                 makedirs(path.dirname(fpath), exist_ok=True)
                 tasks.append(download_url_to_path(url=url, fpath=fpath))
 
-        await asyncio.gather(*tasks)
+        if tasks:
+            await asyncio.gather(*tasks)
 
     def load(self, dtype) -> Union[pl.DataFrame, Tuple[pl.DataFrame, pl.DataFrame]]:
         match dtype:
@@ -248,10 +261,16 @@ class Project:
         )
 
     def _bw_load(self) -> pl.DataFrame:
-        for resource in self.cache_resources:
-            if self.dbase not in resource.rname:
-                continue
-        return pl.DataFrame()
+        urls = self._get_project_urls(Dtype.BW)
+
+        for project_id in self.project_ids:
+            project_urls = [
+                u
+                for u in urls
+                if project_id in u and self.dbase in u and Dtype.BW.value in u
+            ]
+
+        return pl.DataFrame(project_urls, schema=["url"])
 
     def _read_gtf(self, rpath: str) -> pl.DataFrame:
         annotation_dataframe = pl.read_csv(
