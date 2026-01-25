@@ -7,7 +7,6 @@ from functools import reduce
 from os import path, makedirs
 from dataclasses import dataclass, field
 
-import pyBigWig as pbw
 from scipy.io import mmread
 from urllib.parse import urlparse
 from urllib.request import urlretrieve
