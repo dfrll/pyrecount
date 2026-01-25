@@ -3,6 +3,7 @@ import re
 import asyncio
 import logging
 import polars as pl
+from functools import reduce
 from os import path, makedirs
 from dataclasses import dataclass, field
 
@@ -123,46 +124,44 @@ class Project:
         return True
 
     def _metadata_load(self) -> pl.DataFrame:
-        cache_dataframe: pl.DataFrame | None = None
+        cache_meta: list[pl.DataFrame] = []
         join_cols = ["rail_id", "external_id", "study"]
         urls = self._get_project_urls(Dtype.METADATA)
 
         for project_id in self.project_ids:
-            project_dataframe: pl.DataFrame | None = None
+            dfs_for_project: list[pl.DataFrame] = []
 
             for url in urls:
                 if not self._valid_metadata_url(url, project_id):
                     continue
 
                 fpath = urlparse(url).path.lstrip("/")
+                df = pl.read_csv(fpath, separator="\t", infer_schema=False)
+                dfs_for_project.append(df)
 
-                current_dataframe = pl.read_csv(
-                    fpath, separator="\t", infer_schema=False
-                )
-
-                if project_dataframe is None:
-                    project_dataframe = current_dataframe
-
-                else:
-                    project_dataframe = project_dataframe.join(
-                        current_dataframe, on=join_cols, how="inner"
-                    )
-
-            if project_dataframe is None:
+            if not dfs_for_project:
                 continue
 
-            if cache_dataframe is None:
-                cache_dataframe = project_dataframe
-            else:
-                cache_dataframe, project_dataframe = self._add_missing_columns(
-                    cache_dataframe, project_dataframe
+            # join all metadata files for the project
+            project_dataframe = (
+                dfs_for_project[0]
+                if len(dfs_for_project) == 1
+                else reduce(
+                    lambda left, right: left.join(right, on=join_cols, how="inner"),
+                    dfs_for_project,
                 )
-                cache_dataframe = pl.concat(
-                    [cache_dataframe, project_dataframe], how="vertical"
-                )
+            )
 
-        if cache_dataframe is None:
+            cache_meta.append(project_dataframe)
+
+        if not cache_meta:
             raise RuntimeError("No metadata loaded.")
+
+        # concatenate all project dataframes once
+        cache_dataframe = cache_meta[0]
+        for df in cache_meta[1:]:
+            cache_dataframe, df = self._add_missing_columns(cache_dataframe, df)
+            cache_dataframe = pl.concat([cache_dataframe, df], how="vertical")
 
         return replace_organism(cache_dataframe).unique()
 
@@ -174,15 +173,20 @@ class Project:
 
         if missing_in_df1:
             df1 = df1.with_columns(
-                pl.lit(None, dtype=df2.schema[col]).alias(col) for col in missing_in_df1
+                [
+                    pl.lit(None, dtype=df2.schema[col]).alias(col)
+                    for col in missing_in_df1
+                ]
             )
 
         if missing_in_df2:
             df2 = df2.with_columns(
-                pl.lit(None, dtype=df1.schema[col]).alias(col) for col in missing_in_df2
+                [
+                    pl.lit(None, dtype=df1.schema[col]).alias(col)
+                    for col in missing_in_df2
+                ]
             )
 
-        # enforce identical column order
         common_order = sorted(set(df1.columns) | set(df2.columns))
         df1 = df1.select(common_order)
         df2 = df2.select(common_order)
@@ -207,12 +211,7 @@ class Project:
             for url in project_urls:
                 if "ID" in url:
                     fpath = urlparse(url).path.lstrip("/")
-                    ids = (
-                        pl.read_csv(fpath)["rail_id"]
-                        .cast(pl.String)
-                        .map_elements(lambda r: f"{project_id}_{r}")
-                        .to_list()
-                    )
+                    ids = pl.read_csv(fpath)["rail_id"].cast(pl.String).to_list()
 
             for url in project_urls:
                 if "ID" in url:
@@ -230,8 +229,6 @@ class Project:
                     if len(ids) != mm_df.width:
                         raise ValueError("Mismatch between MM columns and IDs")
 
-                    # the samples in the MM jxn table are not in the same order as the metadata.
-                    # this is the reason for renaming using rail IDs.
                     mm_df = mm_df.rename(dict(zip(mm_df.columns, ids)))
                     cache_mm.append(mm_df)
 
