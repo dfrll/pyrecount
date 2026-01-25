@@ -32,7 +32,7 @@ class Project:
     organism: str
     dtype: List[Dtype]
     annotation: Optional[Annotation] = None
-    jxn_format: str = None
+    jxn_format: Optional[str] = None
     root_url: str = "http://duffel.rail.bio/recount3/"
 
     project_ids: List[str] = field(init=False)
@@ -44,22 +44,26 @@ class Project:
             raise TypeError(
                 "Parameter value for `metadata` must be a Polars DataFrame."
             )
-        if not isinstance(self.dtype, list):
-            raise TypeError("Parameter `dtype` must be a list.")
+
+        if not isinstance(self.dtype, list) or not all(
+            isinstance(d, Dtype) for d in self.dtype
+        ):
+            raise TypeError("Parameter value for `dtype` must be a list of Dtype.")
 
         if Dtype.JXN in self.dtype and self.jxn_format is None:
             raise ValueError(
-                f"Parameter `jxn_format` is required when `dtype` is {Dtype.JXN}."
+                "Parameter value for `jxn_format` is required when `Dtype.JXN` is included in `dtype`."
             )
+
         if (
             Dtype.GENE in self.dtype or Dtype.EXON in self.dtype
         ) and self.annotation is None:
             raise ValueError(
-                f"Parameter `annotation` is required when `dtype` is {self.dtype}."
+                f"Parameter value for `annotation` is required when `dtype` is {self.dtype}."
             )
 
-        self.project_ids: List[str] = self.metadata["project"].unique().to_list()
-        self.sample: List[str] = self.metadata["external_id"].unique().to_list()
+        self.project_ids = self.metadata["project"].unique().to_list()
+        self.sample = self.metadata["external_id"].unique().to_list()
         self.endpoints = EndpointConnector(
             root_url=self.root_url, organism=self.organism
         )
@@ -107,23 +111,27 @@ class Project:
             case _:
                 raise ValueError(f"Invalid dtype: {self.dtype}")
 
+    def _valid_metadata_url(self, url: str, project_id: str) -> bool:
+        if project_id not in url:
+            return False
+        if self.dbase not in url:
+            return False
+        if Dtype.METADATA.value not in url:
+            return False
+        if self.dbase in {"gtex", "tcga"} and "pred" in url:
+            return False
+        return True
+
     def _metadata_load(self) -> pl.DataFrame:
-        cache_dataframe = None
+        cache_dataframe: pl.DataFrame | None = None
         join_cols = ["rail_id", "external_id", "study"]
+        urls = self._get_project_urls(Dtype.METADATA)
 
         for project_id in self.project_ids:
-            project_dataframe = None
-            for url in self._get_project_urls(Dtype.METADATA):
-                if project_id not in url:
-                    continue
+            project_dataframe: pl.DataFrame | None = None
 
-                if self.dbase not in url:
-                    continue
-                if Dtype.METADATA.value not in url:
-                    continue
-
-                # skip metadata pred if loading gtex or tcga
-                if self.dbase in ["gtex", "tcga"] and "pred" in url:
+            for url in urls:
+                if not self._valid_metadata_url(url, project_id):
                     continue
 
                 fpath = urlparse(url).path.lstrip("/")
@@ -132,16 +140,16 @@ class Project:
                     fpath, separator="\t", infer_schema=False
                 )
 
-                try:
-                    if project_dataframe is None:
-                        project_dataframe = current_dataframe
-                    else:
-                        project_dataframe = project_dataframe.join(
-                            current_dataframe, on=join_cols
-                        )
-                except Exception as e:
-                    logging.error(f"Error joining resource {fpath} to metadata: {e}")
-                    return
+                if project_dataframe is None:
+                    project_dataframe = current_dataframe
+
+                else:
+                    project_dataframe = project_dataframe.join(
+                        current_dataframe, on=join_cols, how="inner"
+                    )
+
+            if project_dataframe is None:
+                continue
 
             if cache_dataframe is None:
                 cache_dataframe = project_dataframe
@@ -149,13 +157,12 @@ class Project:
                 cache_dataframe, project_dataframe = self._add_missing_columns(
                     cache_dataframe, project_dataframe
                 )
-                try:
-                    cache_dataframe = pl.concat(
-                        [cache_dataframe, project_dataframe], how="vertical"
-                    )
-                except Exception as e:
-                    logging.error(f"Error concatenating {fpath} to metadata: {e}")
-                    return
+                cache_dataframe = pl.concat(
+                    [cache_dataframe, project_dataframe], how="vertical"
+                )
+
+        if cache_dataframe is None:
+            raise RuntimeError("No metadata loaded.")
 
         return replace_organism(cache_dataframe).unique()
 
@@ -165,78 +172,83 @@ class Project:
         missing_in_df1 = [col for col in df2.columns if col not in df1.columns]
         missing_in_df2 = [col for col in df1.columns if col not in df2.columns]
 
-        df1_types = {col: df1.schema[col] for col in missing_in_df2}
-        df2_types = {col: df2.schema[col] for col in missing_in_df1}
+        if missing_in_df1:
+            df1 = df1.with_columns(
+                pl.lit(None, dtype=df2.schema[col]).alias(col) for col in missing_in_df1
+            )
 
-        for col in missing_in_df1:
-            df1 = df1.with_columns(pl.lit(None).cast(df2_types[col]).alias(col))
-        for col in missing_in_df2:
-            df2 = df2.with_columns(pl.lit(None).cast(df1_types[col]).alias(col))
+        if missing_in_df2:
+            df2 = df2.with_columns(
+                pl.lit(None, dtype=df1.schema[col]).alias(col) for col in missing_in_df2
+            )
+
+        # enforce identical column order
+        common_order = sorted(set(df1.columns) | set(df2.columns))
+        df1 = df1.select(common_order)
+        df2 = df2.select(common_order)
+
         return df1, df2
 
     def _jxn_load(self) -> Tuple[pl.DataFrame, pl.DataFrame]:
-        cache_mm_dataframe: Optional[pl.DataFrame] = None
-        cache_dataframe: Optional[pl.DataFrame] = None
+        cache_mm: List[pl.DataFrame] = []
+        cache_meta: List[pl.DataFrame] = []
 
-        url_list = self._get_project_urls(Dtype.JXN)
+        urls = self._get_project_urls(Dtype.JXN)
 
         for project_id in self.project_ids:
-            for url in url_list:
-                if project_id not in url:
-                    continue
-                if self.dbase not in url:
-                    continue
-                if Dtype.JXN.value not in url:
-                    continue
-                fpath = urlparse(url).path.lstrip("/")
-                if "ID" in fpath:
-                    ids = [
-                        f"{project_id}_{rail_id}"
-                        for rail_id in pl.read_csv(fpath)["rail_id"]
-                        .cast(pl.String)
-                        .to_list()
-                    ]
+            project_urls = [
+                u
+                for u in urls
+                if project_id in u and self.dbase in u and Dtype.JXN.value in u
+            ]
 
-            for url in url_list:
-                if project_id not in url:
-                    continue
-                if self.dbase not in url:
-                    continue
-                if Dtype.JXN.value not in url:
-                    continue
+            ids: list[str] | None = None
+
+            for url in project_urls:
+                if "ID" in url:
+                    fpath = urlparse(url).path.lstrip("/")
+                    ids = (
+                        pl.read_csv(fpath)["rail_id"]
+                        .cast(pl.String)
+                        .map_elements(lambda r: f"{project_id}_{r}")
+                        .to_list()
+                    )
+
+            for url in project_urls:
                 if "ID" in url:
                     continue
 
                 fpath = urlparse(url).path.lstrip("/")
 
                 if "MM" in url:
+                    if ids is None:
+                        raise RuntimeError(f"No ID file found for {project_id}")
+
+                    mm = mmread(fpath).toarray()
+                    mm_df = pl.from_numpy(mm)
+
+                    if len(ids) != mm_df.width:
+                        raise ValueError("Mismatch between MM columns and IDs")
+
                     # the samples in the MM jxn table are not in the same order as the metadata.
                     # this is the reason for renaming using rail IDs.
-                    project_mm_dataframe = pl.from_numpy(mmread(fpath).toarray())
-                    project_mm_dataframe = project_mm_dataframe.rename(
-                        dict(zip(project_mm_dataframe.columns, ids))
-                    )
-
-                    if cache_mm_dataframe is None:
-                        cache_mm_dataframe = project_mm_dataframe
-                    else:
-                        cache_mm_dataframe = pl.concat(
-                            [cache_mm_dataframe, project_mm_dataframe], how="horizontal"
-                        )
+                    mm_df = mm_df.rename(dict(zip(mm_df.columns, ids)))
+                    cache_mm.append(mm_df)
 
                 else:
-                    current_dataframe = pl.read_csv(
+                    df = pl.read_csv(
                         fpath, separator="\t", infer_schema=False
                     ).with_columns(pl.lit(project_id).alias("project_id"))
 
-                    if cache_dataframe is None:
-                        cache_dataframe = current_dataframe
-                    else:
-                        cache_dataframe = pl.concat(
-                            [cache_dataframe, current_dataframe], how="vertical"
-                        )
+                    cache_meta.append(df)
 
-        return cache_mm_dataframe, cache_dataframe
+        if not cache_mm or not cache_meta:
+            raise RuntimeError("No junction data loaded.")
+
+        return (
+            pl.concat(cache_mm, how="horizontal"),
+            pl.concat(cache_meta, how="vertical"),
+        )
 
     def _bw_load(self) -> pl.DataFrame:
         for resource in self.cache_resources:
