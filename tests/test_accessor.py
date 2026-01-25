@@ -275,7 +275,7 @@ async def test_project_gene_accessor(
         ("mouse", "sra", ["SRP111354"], Annotation.GENCODE_V23, (15, 1)),
     ],
 )
-async def test_project_bigwig_accessor(
+def test_project_bigwig_accessor(
     organism, dbase, project_ids, annotation, expected_shape
 ):
     root_url = "http://duffel.rail.bio/recount3"
@@ -300,7 +300,6 @@ async def test_project_bigwig_accessor(
         root_url=root_url,
     )
 
-    await bw.cache()
     bw = bw.load(dtype)
 
     assert bw.shape == expected_shape
