@@ -6,7 +6,6 @@ from pyrecount.accessor import Metadata, Project
 from pyrecount.models import Dtype, Annotation
 
 # TODO: test dbs other than sra for jxn, exon, gene dtypes
-# TODO: handle BigWig
 # TODO: transform raw counts
 # TODO: multi-project support for exon, gene dtypes
 # TODO: define dataframe schemas
@@ -223,3 +222,40 @@ async def test_project_gene_accessor(
 
     assert gene_annotation.shape == expected_annotation_shape
     assert gene_counts.shape == expected_counts_shape
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "organism, project, annotation, expected_shape",
+    [
+        ("human", ["SRP009615"], Annotation.GENCODE_V29, (12, 1)),
+        ("mouse", ["SRP111354"], Annotation.GENCODE_V23, (15, 1)),
+    ],
+)
+async def test_project_bigwig_accessor(organism, project, annotation, expected_shape):
+    root_url = "http://duffel.rail.bio/recount3"
+    recount_metadata = Metadata(organism=organism, root_url=root_url)
+
+    recount_metadata.cache()
+
+    recount_meta_dataframe = recount_metadata.load()
+
+    project_meta_dataframe = recount_meta_dataframe.filter(
+        (pl.col("project").is_in(project))
+    )
+
+    dtype = Dtype.BW
+    bw = Project(
+        metadata=project_meta_dataframe,
+        dbase="sra",
+        organism=organism,
+        dtype=[dtype],
+        annotation=annotation,
+        jxn_format=None,
+        root_url=root_url,
+    )
+
+    await bw.cache()
+    bw = bw.load(dtype)
+
+    assert bw.shape == expected_shape
