@@ -21,6 +21,7 @@ poetry install
 ## Examples
 
 ``` python
+#! /usr/bin/env python3
 import polars as pl
 import asyncio
 from pyrecount.models import Dtype, Annotation
@@ -55,7 +56,7 @@ print(project_meta_dataframe)
 
 
 # project metadata
-dtype = [Dtype.METADATA, Dtype.JXN, Dtype.GENE, Dtype.EXON]
+dtype = [Dtype.METADATA, Dtype.JXN, Dtype.GENE, Dtype.EXON, Dtype.BW]
 annotation = Annotation.GENCODE_V29
 
 project = Project(
@@ -86,6 +87,10 @@ exon_annotation, exon_counts = project.load(Dtype.EXON)
 
 print(exon_annotation)
 print(exon_counts)
+
+bw = project.load(Dtype.BW)
+print(bw)
+
 ```
 
 ## Citations
@@ -97,3 +102,4 @@ project_. doi:10.18129/B9.bioc.recount3
 <https://doi.org/10.18129/B9.bioc.recount3>,
 https://github.com/LieberInstitute/recount3 - R package version
 1.16.0, <http://www.bioconductor.org/packages/recount3>.
+
