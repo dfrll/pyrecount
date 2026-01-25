@@ -224,7 +224,6 @@ async def test_project_gene_accessor(
     assert gene_counts.shape == expected_counts_shape
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "organism, project, annotation, expected_shape",
     [
@@ -232,7 +231,7 @@ async def test_project_gene_accessor(
         ("mouse", ["SRP111354"], Annotation.GENCODE_V23, (15, 1)),
     ],
 )
-async def test_project_bigwig_accessor(organism, project, annotation, expected_shape):
+def test_project_bigwig_accessor(organism, project, annotation, expected_shape):
     root_url = "http://duffel.rail.bio/recount3"
     recount_metadata = Metadata(organism=organism, root_url=root_url)
 
@@ -255,7 +254,6 @@ async def test_project_bigwig_accessor(organism, project, annotation, expected_s
         root_url=root_url,
     )
 
-    await bw.cache()
     bw = bw.load(dtype)
 
     assert bw.shape == expected_shape
