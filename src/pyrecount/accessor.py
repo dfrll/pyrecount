@@ -99,7 +99,7 @@ class Project:
             if dtype not in CACHEABLE_DTYPES:
                 continue
 
-            for url in self._get_project_urls(dtype):
+            for url in self.get_project_urls(dtype):
                 fpath = urlparse(url).path.lstrip("/")
                 if path.exists(fpath):
                     continue
@@ -139,7 +139,7 @@ class Project:
     def _metadata_load(self) -> pl.DataFrame:
         cache_meta: list[pl.DataFrame] = []
         join_cols = ["rail_id", "external_id", "study"]
-        urls = self._get_project_urls(Dtype.METADATA)
+        urls = self.get_project_urls(Dtype.METADATA)
 
         for project_id in self.project_ids:
             dfs_for_project: list[pl.DataFrame] = []
@@ -210,7 +210,7 @@ class Project:
         cache_mm: List[pl.DataFrame] = []
         cache_meta: List[pl.DataFrame] = []
 
-        urls = self._get_project_urls(Dtype.JXN)
+        urls = self.get_project_urls(Dtype.JXN)
 
         for project_id in self.project_ids:
             project_urls = [
@@ -261,7 +261,7 @@ class Project:
         )
 
     def _bw_load(self) -> pl.DataFrame:
-        urls = self._get_project_urls(Dtype.BW)
+        urls = self.get_project_urls(Dtype.BW)
 
         for project_id in self.project_ids:
             project_urls = [
@@ -328,7 +328,7 @@ class Project:
         return counts_dataframe
 
     def _gene_load(self) -> pl.DataFrame:
-        for url in self._get_project_urls(Dtype.GENE):
+        for url in self.get_project_urls(Dtype.GENE):
             fpath = urlparse(url).path.lstrip("/")
             if self.annotation.value in fpath:
                 if any(fpath.endswith(ext) for ext in Extensions.GENE.value):
@@ -338,7 +338,7 @@ class Project:
         return annotation, counts
 
     def _exon_load(self) -> pl.DataFrame:
-        for url in self._get_project_urls(Dtype.EXON):
+        for url in self.get_project_urls(Dtype.EXON):
             fpath = urlparse(url).path.lstrip("/")
             if self.annotation.value in fpath:
                 if any(url.endswith(ext) for ext in Extensions.EXON.value):
