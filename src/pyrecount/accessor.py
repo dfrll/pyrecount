@@ -78,7 +78,7 @@ class Project:
             root_url=self.root_url, organism=self.organism
         )
 
-    def _get_project_urls(self, dtype) -> List[str]:
+    def get_project_urls(self, dtype) -> List[str]:
         project = ProjectLocator(
             root_organism_url=self.endpoints.root_organism_url,
             data_sources=self.endpoints.data_sources,
