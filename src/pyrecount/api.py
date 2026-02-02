@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+import time
 import logging
 from os import path
 from typing import Optional, Dict
@@ -27,17 +28,26 @@ class EndpointConnector:
             self._set_data_sources(resp)
 
     def _set_data_sources(self, resp: Response):
-        self.data_sources: Dict[str, str] = {
+        self.data_sources = {
             path.basename(dsource): dsource
             for dsource in resp.text.strip().splitlines()
         }
 
     def _validate_endpoint(self, endpoint: str) -> Optional[Response]:
-        log.info(f"Validating endpoint {endpoint}.")
-        try:
-            resp = get(endpoint, timeout=10)
-            resp.raise_for_status()
-            return resp
-        except RequestException as e:
-            log.error(f"Error while validating endpoint {endpoint}: {e}")
-            return None
+        attempts = 3
+        backoff = 2
+
+        for attempt in range(1, attempts + 1):
+            try:
+                resp = get(endpoint, timeout=10)
+                resp.raise_for_status()
+                return resp
+
+            except RequestException as e:
+                log.warning(f"Attempt {attempt}/{attempts} failed for {endpoint}: {e}")
+
+                if attempt < attempts:
+                    time.sleep(backoff**attempt)
+                else:
+                    log.error(f"All retries failed for {endpoint}")
+                    return None
