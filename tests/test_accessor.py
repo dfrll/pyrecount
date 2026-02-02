@@ -260,7 +260,6 @@ async def test_project_gene_accessor(
     assert gene_counts.shape == expected_counts_shape
 
 
-@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "organism, dbase, project_ids, annotation, expected_shape",
     [
