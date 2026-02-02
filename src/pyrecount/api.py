@@ -17,13 +17,14 @@ class EndpointConnector:
     root_url: str = "http://duffel.rail.bio/recount3"
 
     root_organism_url: str = field(init=False)
-    data_sources: Dict[str, str] = field(init=False)
+    data_sources: Dict[str, str] = field(init=False, default_factory=dict)
 
     def __post_init__(self):
         self.root_organism_url = path.join(self.root_url, self.organism)
 
         index = path.join(self.root_organism_url, HOMES_INDEX)
         resp = self._validate_endpoint(endpoint=index)
+
         if resp:
             self._set_data_sources(resp)
 
@@ -31,6 +32,7 @@ class EndpointConnector:
         self.data_sources = {
             path.basename(dsource): dsource
             for dsource in resp.text.strip().splitlines()
+            if dsource.strip()
         }
 
     def _validate_endpoint(self, endpoint: str) -> Optional[Response]:
@@ -39,7 +41,8 @@ class EndpointConnector:
 
         for attempt in range(1, attempts + 1):
             try:
-                resp = get(endpoint, timeout=10)
+                # separate connect/read timeout improves reliability
+                resp = get(endpoint, timeout=(5, 30))
                 resp.raise_for_status()
                 return resp
 
