@@ -377,7 +377,7 @@ class Metadata:
 
     def cache(self) -> None:
         self.urls = MetadataLocator(
-            self.eps.root_organism_url, self.eps.data_sources
+            self.eps.root_organism_url, self.eps._set_data_sources
         ).urls
 
         for url in self.urls:
