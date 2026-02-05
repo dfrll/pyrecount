@@ -26,7 +26,7 @@ print(n_sample_project)
 
 # subset
 project_meta_dataframe = recount_meta_dataframe.filter(
-    (pl.col("project").is_in(["SRP009615"]))
+    pl.col("project").is_in(["SRP009615"]) & pl.col("external_id").is_in(["SRR389077"])
 )
 
 print(project_meta_dataframe)
@@ -46,6 +46,7 @@ project = Project(
 )
 
 asyncio.run(project.cache())
+
 project_metadata = project.load(Dtype.METADATA)
 
 print(project_metadata)
