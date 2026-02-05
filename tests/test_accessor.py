@@ -6,7 +6,7 @@ from pyrecount.accessor import Metadata, Project
 from pyrecount.models import Dtype, Annotation
 
 # TODO: transform raw counts
-# TODO: materialize requested columns: e.g., async polars for study id column
+# TODO: jxn dataframe headers, external_id not rail id
 # TODO: multi-project support for exon, gene dtypes
 # TODO: expand sra attributes
 # TODO: expose Lazyframes

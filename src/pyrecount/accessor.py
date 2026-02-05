@@ -86,6 +86,7 @@ class Project:
             dtype=dtype,
             annotation=self.annotation,
             project_ids=self.project_ids,
+            # only needed for bigwig
             sample=self.sample,
             jxn_format=self.jxn_format,
         )
@@ -150,6 +151,11 @@ class Project:
 
                 fpath = urlparse(url).path.lstrip("/")
                 df = pl.read_csv(fpath, separator="\t", infer_schema=False)
+                df = (
+                    df.filter(pl.col("external_id").is_in(self.sample))
+                    if self.sample
+                    else df
+                )
                 dfs_for_project.append(df)
 
             if not dfs_for_project:
@@ -272,7 +278,7 @@ class Project:
 
         return pl.DataFrame(project_urls, schema=["url"])
 
-    def _read_gtf(self, rpath: str) -> pl.DataFrame:
+    def _gtf_read(self, rpath: str) -> pl.DataFrame:
         annotation_dataframe = pl.read_csv(
             rpath,
             comment_prefix="#",
@@ -319,22 +325,37 @@ class Project:
             ]
         )
 
-    def _read_counts(self, rname: str):
-        counts_dataframe = pl.read_csv(
+    def _counts_read(self, rname: str, colname: Optional[str] = None):
+        df = pl.read_csv(
             rname,
             comment_prefix="#",
             separator="\t",
         )
-        return counts_dataframe
 
-    def _gene_load(self) -> pl.DataFrame:
+        first_col = df.columns[0]
+
+        if not self.sample:
+            return df
+
+        keep = [first_col] + self.sample
+        missing = set(keep) - set(df.columns)
+        if missing:
+            raise KeyError(f"Missing columns in counts file: {missing}")
+        return df.select(keep)
+
+    def _gene_load(self) -> tuple[pl.DataFrame, pl.DataFrame]:
+        annotation = None
+        counts = None
         for url in self.get_project_urls(Dtype.GENE):
             fpath = urlparse(url).path.lstrip("/")
             if self.annotation.value in fpath:
                 if any(fpath.endswith(ext) for ext in Extensions.GENE.value):
-                    annotation = self._read_gtf(fpath)
+                    annotation = self._gtf_read(fpath)
                 if fpath.endswith(f"{self.annotation.value}.gz"):
-                    counts = self._read_counts(fpath)
+                    counts = self._counts_read(fpath, "gene_id")
+
+        if annotation is None or counts is None:
+            raise RuntimeError("Missing gene annotation or counts file")
         return annotation, counts
 
     def _exon_load(self) -> pl.DataFrame:
@@ -342,9 +363,9 @@ class Project:
             fpath = urlparse(url).path.lstrip("/")
             if self.annotation.value in fpath:
                 if any(url.endswith(ext) for ext in Extensions.EXON.value):
-                    annotation = self._read_gtf(fpath)
+                    annotation = self._gtf_read(fpath)
                 if url.endswith(f"{self.annotation.value}.gz"):
-                    counts = self._read_counts(fpath)
+                    counts = self._counts_read(fpath)
                     # TODO: extract first column (chromosome|start_1base|end_1ba…)
                     exon_colname = counts.columns[0]
                     exon_fields = ["chrom", "start", "end", "strand"]
