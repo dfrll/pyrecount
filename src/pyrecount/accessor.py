@@ -86,7 +86,6 @@ class Project:
             dtype=dtype,
             annotation=self.annotation,
             project_ids=self.project_ids,
-            # only needed for bigwig
             sample=self.sample,
             jxn_format=self.jxn_format,
         )
@@ -108,6 +107,7 @@ class Project:
                 makedirs(path.dirname(fpath), exist_ok=True)
                 tasks.append(download_url_to_path(url=url, fpath=fpath))
 
+        # launches all tasks, without rate limiting
         if tasks:
             await asyncio.gather(*tasks)
 
@@ -118,7 +118,47 @@ class Project:
             case Dtype.JXN:
                 return self._jxn_load()
             case Dtype.GENE:
-                return self._gene_load()
+                # XXX:
+                # TODO: force sample name alignment before scaling
+
+                targetSize = 4e7
+                L = 100
+
+                md = self._metadata_load()
+                mapped_reads = md["star.all_mapped_reads"].cast(pl.Float64)
+                avg_mapped_read_length = md["star.average_mapped_length"].cast(
+                    pl.Float64
+                )
+                avg_read_length = md["avg_len"].cast(pl.Float64)
+
+                ratio = (avg_mapped_read_length / avg_read_length).round(0)
+                ratio = ratio.set(~ratio.is_in([1, 2]), None)
+
+                paired_end = ratio == 2
+                paired_factor = pl.when(paired_end).then(2).otherwise(1)
+
+                scaleFactor = md.select(
+                    (
+                        targetSize
+                        * L
+                        * paired_factor
+                        / (mapped_reads * avg_mapped_read_length**2)
+                    ).alias("scaleFactor")
+                ).to_series()
+
+                _, counts = self._gene_load()
+
+                numeric_cols = counts.select(pl.selectors.numeric()).columns
+                scaled = counts.with_columns(
+                    [
+                        (pl.col(c) * sf).round(0)
+                        for c, sf in zip(numeric_cols, scaleFactor)
+                    ]
+                )
+
+                print(scaled)
+
+                return pl.DataFrame(), pl.DataFrame()
             case Dtype.EXON:
                 return self._exon_load()
             case Dtype.BW:
@@ -366,7 +406,6 @@ class Project:
                     annotation = self._gtf_read(fpath)
                 if url.endswith(f"{self.annotation.value}.gz"):
                     counts = self._counts_read(fpath)
-                    # TODO: extract first column (chromosome|start_1base|end_1ba…)
                     exon_colname = counts.columns[0]
                     exon_fields = ["chrom", "start", "end", "strand"]
                     counts = (
