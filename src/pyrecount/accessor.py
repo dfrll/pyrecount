@@ -147,6 +147,7 @@ class Project:
 
         auc = pl.col("bc_auc.all_reads_all_bases").cast(pl.Float64)
 
+        # scale factors
         sf = md.select(
             "external_id",
             (target_size / auc).alias("sf"),
@@ -368,9 +369,11 @@ class Project:
             [
                 annotation_dataframe["attribute"]
                 .map_elements(
-                    lambda x: re.findall(rf'{field} "([^"]*)"', x)[0]
-                    if rf'{field} "' in x
-                    else "",
+                    lambda x: (
+                        re.findall(rf'{field} "([^"]*)"', x)[0]
+                        if rf'{field} "' in x
+                        else ""
+                    ),
                     return_dtype=pl.Utf8,
                 )
                 .alias(field)
