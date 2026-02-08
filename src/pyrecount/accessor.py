@@ -111,6 +111,57 @@ class Project:
         if tasks:
             await asyncio.gather(*tasks)
 
+    def _scale_mapped_reads(self, counts, target_size, L):
+        md = self._metadata_load()
+
+        mapped_reads = pl.col("star.all_mapped_reads").cast(pl.Float64)
+        avg_mapped_len = pl.col("star.average_mapped_length").cast(pl.Float64)
+        avg_read_len = pl.col("avg_len").cast(pl.Float64)
+
+        # paired-end detection
+        ratio = (avg_mapped_len / avg_read_len).round(0)
+        paired_end = ratio == 2
+        paired_factor = pl.when(paired_end).then(2).otherwise(1)
+
+        # scale factors
+        sf = md.select(
+            [
+                pl.col("external_id"),
+                (
+                    target_size * L * paired_factor / (mapped_reads * avg_mapped_len**2)
+                ).alias("sf"),
+            ]
+        )
+
+        sf_map = dict(zip(sf["external_id"], sf["sf"]))
+
+        return counts.with_columns(
+            [
+                (pl.col(c) * sf_map[c])
+                for c in counts.select(pl.selectors.numeric()).columns
+            ]
+        )
+
+    def _scale_auc(self, counts, target_size):
+        md = self._metadata_load()
+
+        auc = pl.col("bc_auc.all_reads_all_bases").cast(pl.Float64)
+
+        sf = md.select(
+            "external_id",
+            (target_size / auc).alias("sf"),
+        )
+
+        sf_map = dict(zip(sf["external_id"], sf["sf"]))
+
+        return counts.with_columns(
+            [
+                pl.col(c).mul(sf_map[c]).round(0).cast(pl.Int64).alias(c)
+                for c in counts.columns
+                if c != "gene_id"
+            ]
+        )
+
     def load(self, dtype) -> Union[pl.DataFrame, Tuple[pl.DataFrame, pl.DataFrame]]:
         match dtype:
             case Dtype.METADATA:
@@ -118,47 +169,9 @@ class Project:
             case Dtype.JXN:
                 return self._jxn_load()
             case Dtype.GENE:
-                # XXX:
-                # TODO: force sample name alignment before scaling
-
-                targetSize = 4e7
-                L = 100
-
-                md = self._metadata_load()
-                mapped_reads = md["star.all_mapped_reads"].cast(pl.Float64)
-                avg_mapped_read_length = md["star.average_mapped_length"].cast(
-                    pl.Float64
-                )
-                avg_read_length = md["avg_len"].cast(pl.Float64)
-
-                ratio = (avg_mapped_read_length / avg_read_length).round(0)
-                ratio = ratio.set(~ratio.is_in([1, 2]), None)
-
-                paired_end = ratio == 2
-                paired_factor = pl.when(paired_end).then(2).otherwise(1)
-
-                scaleFactor = md.select(
-                    (
-                        targetSize
-                        * L
-                        * paired_factor
-                        / (mapped_reads * avg_mapped_read_length**2)
-                    ).alias("scaleFactor")
-                ).to_series()
-
-                _, counts = self._gene_load()
-
-                numeric_cols = counts.select(pl.selectors.numeric()).columns
-                scaled = counts.with_columns(
-                    [
-                        (pl.col(c) * sf).round(0)
-                        for c, sf in zip(numeric_cols, scaleFactor)
-                    ]
-                )
-
-                print(scaled)
-
-                return pl.DataFrame(), pl.DataFrame()
+                annotation, counts = self._gene_load()
+                target_size = 4e7
+                return annotation, self._scale_auc(counts, target_size)
             case Dtype.EXON:
                 return self._exon_load()
             case Dtype.BW:
