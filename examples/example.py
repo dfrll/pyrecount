@@ -26,7 +26,7 @@ print(n_sample_project)
 
 # subset
 project_meta_dataframe = recount_meta_dataframe.filter(
-    pl.col("project").is_in(["SRP009615"]) & pl.col("external_id").is_in(["SRR389077"])
+    pl.col("project").is_in(["SRP009615"])
 )
 
 print(project_meta_dataframe)
@@ -60,6 +60,21 @@ gene_annotation, gene_counts = project.load(Dtype.GENE)
 
 print(gene_annotation)
 print(gene_counts)
+
+scaled_counts = project.scale_mapped_reads(
+    gene_counts,
+    target_size=4e7,
+    L=100,
+)
+
+print(scaled_counts)
+
+scaled_counts = project.scale_auc(
+    gene_counts,
+    target_size=4e7,
+)
+
+print(scaled_counts)
 
 exon_annotation, exon_counts = project.load(Dtype.EXON)
 

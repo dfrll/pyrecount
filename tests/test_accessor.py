@@ -5,7 +5,6 @@ import polars as pl
 from pyrecount.accessor import Metadata, Project
 from pyrecount.models import Dtype, Annotation
 
-# TODO: transform raw counts
 # TODO: jxn dataframe headers, external_id not rail id
 # TODO: multi-project support for exon, gene dtypes
 # TODO: expand sra attributes

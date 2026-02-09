@@ -47,7 +47,9 @@ class Project:
 
     project_ids: List[str] = field(init=False)
     sample: List[str] = field(init=False)
-    endpoints: "EndpointConnector" = field(init=False)
+    endpoints: EndpointConnector = field(init=False)
+
+    _cached_metadata: Optional[pl.DataFrame] = field(init=False, default=None)
 
     def __post_init__(self):
         if not isinstance(self.metadata, pl.DataFrame):
@@ -111,8 +113,8 @@ class Project:
         if tasks:
             await asyncio.gather(*tasks)
 
-    def _scale_mapped_reads(self, counts, target_size, L):
-        md = self._metadata_load()
+    def scale_mapped_reads(self, counts: pl.DataFrame, target_size: float, L: int):
+        md = self.load_metadata()
 
         mapped_reads = pl.col("star.all_mapped_reads").cast(pl.Float64)
         avg_mapped_len = pl.col("star.average_mapped_length").cast(pl.Float64)
@@ -142,8 +144,8 @@ class Project:
             ]
         )
 
-    def _scale_auc(self, counts, target_size):
-        md = self._metadata_load()
+    def scale_auc(self, counts: pl.DataFrame, target_size: float) -> pl.DataFrame:
+        md = self.load_metadata()
 
         auc = pl.col("bc_auc.all_reads_all_bases").cast(pl.Float64)
 
@@ -163,16 +165,19 @@ class Project:
             ]
         )
 
+    def load_metadata(self) -> pl.DataFrame:
+        if self._cached_metadata is None:
+            self._cached_metadata = self._metadata_load()
+        return self._cached_metadata
+
     def load(self, dtype) -> Union[pl.DataFrame, Tuple[pl.DataFrame, pl.DataFrame]]:
         match dtype:
             case Dtype.METADATA:
-                return self._metadata_load()
+                return self.load_metadata()
             case Dtype.JXN:
                 return self._jxn_load()
             case Dtype.GENE:
-                annotation, counts = self._gene_load()
-                target_size = 4e7
-                return annotation, self._scale_auc(counts, target_size)
+                return self._gene_load()
             case Dtype.EXON:
                 return self._exon_load()
             case Dtype.BW:
