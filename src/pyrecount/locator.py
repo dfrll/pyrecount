@@ -1,45 +1,46 @@
 #! /usr/bin/env python3
 from os import path
 from itertools import product
-from .models import Dtype, Annotation, Tags, Extensions
-from typing import Union, Optional, List, Dict
-
-from pprint import pprint
+from .models import Dtype, Annotation, Tags
 
 
 class ProjectLocator:
     def __init__(
         self,
         root_organism_url: str,
-        data_sources: Dict[str, str],
+        data_sources: dict[str, str],
         dbase: str,
-        dtype: List[Dtype],
-        annotation: Annotation,
-        project_ids: List[str],
-        sample: Optional[Union[str, List[str]]] = None,
-        jxn_format: Optional[str] = None,
+        dtype: Dtype,
+        annotation: Annotation | None,
+        project_ids: list[str],
+        sample: str | list[str] | None = None,
+        jxn_format: str | None = None,
     ):
+        if dtype in (Dtype.GENE, Dtype.EXON) and annotation is None:
+            raise ValueError(f"`annotation` is required when `dtype` is {dtype}")
         if dtype == Dtype.BW and sample is None:
-            raise ValueError(
-                f"Parameter `sample` is required when `dtype` is {Dtype.BW}"
-            )
-        # if not isinstance(dtype, List):
-        # raise TypeError('Parameter value for `dtype` must be a list.')
-        if not isinstance(project_ids, List):
-            raise TypeError("Parameter value for `project_ids` must be a list.")
+            raise ValueError(f"`sample` is required when `dtype` is {Dtype.BW}")
+        if not isinstance(project_ids, list):
+            raise TypeError("`project_ids` must be a list.")
 
         self.root_organism_url: str = root_organism_url
-        self.data_sources: Dict[str, str] = data_sources
+        self.data_sources: dict[str, str] = data_sources
         self.dbase: str = dbase
-        self.dtype: List[Dtype] = [dtype] if isinstance(dtype, str) else dtype
-        self.annotation: Annotation = annotation
-        self.project_ids: List[str] = project_ids
-        self.sample: List[str] = [sample] if isinstance(sample, str) else sample
-        self.jxn_format: Optional[str] = jxn_format
+        self.dtype: Dtype = dtype
+        self.annotation: Annotation | None = annotation
+        self.project_ids: list[str] = project_ids
+        self.sample: list[str] = (
+            [sample]
+            if isinstance(sample, str)
+            else sample
+            if sample is not None
+            else []
+        )
+        self.jxn_format: str | None = jxn_format
 
     # TODO: replace with .models.extensions
     @property
-    def _extensions(self) -> List[str]:
+    def _extensions(self) -> list[str]:
         match self.dtype:
             case Dtype.METADATA:
                 return ["MD.gz"]
@@ -53,7 +54,7 @@ class ProjectLocator:
                 raise ValueError(f"Invalid dtype: {self.dtype}")
 
     @property
-    def _tags(self) -> List[str]:
+    def _tags(self) -> list[str]:
         match self.dtype:
             case Dtype.METADATA:
                 return [self.dbase] + Tags.METADATA.value
@@ -62,21 +63,24 @@ class ProjectLocator:
             case _:
                 raise ValueError(f"Invalid dtype: {self.dtype}")
 
-    def _get_indices(self, attribute_name) -> Dict[str, str]:
-        return {value: value[-2:] for value in getattr(self, attribute_name)}
+    def _get_indices(self, attribute_name) -> dict[str, str]:
+        values = getattr(self, attribute_name)
+        if not values:
+            return {}
+        return {v: v[-2:] for v in values}
 
     @property
-    def _project_indices(self) -> Dict[str, str]:
+    def _project_indices(self) -> dict[str, str]:
         # return last last two characters of project id
         return self._get_indices(attribute_name="project_ids")
 
     @property
-    def _sample_indices(self) -> Dict[str, str]:
+    def _sample_indices(self) -> dict[str, str]:
         # return last last two characters of sample id
         return self._get_indices(attribute_name="sample")
 
     @property
-    def urls(self) -> List[str]:
+    def urls(self) -> list[str]:
         paths = list()
         base = path.join(self.root_organism_url)
         tag_extension_prod = list(product(self._tags, self._extensions))
@@ -164,13 +168,13 @@ class MetadataLocator:
     def __init__(
         self,
         root_organism_url: str,
-        data_sources: Dict[str, str],
+        data_sources: dict[str, str],
     ):
         self.root_organism_url: str = root_organism_url
-        self.data_sources: Dict[str, str] = data_sources
+        self.data_sources: dict[str, str] = data_sources
 
     @property
-    def urls(self) -> List[str]:
+    def urls(self) -> list[str]:
         dtype, ext = Dtype.METADATA, ".recount_project.MD.gz"
         return [
             path.join(

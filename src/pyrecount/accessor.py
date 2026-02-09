@@ -91,7 +91,7 @@ class Project:
         return loader.load()
 
     def get_project_urls(self, dtype: Dtype) -> list[str]:
-        project = ProjectLocator(
+        locator = ProjectLocator(
             root_organism_url=self.endpoints.root_organism_url,
             data_sources=self.endpoints.data_sources,
             dbase=self.dbase,
@@ -102,7 +102,7 @@ class Project:
             jxn_format=self.jxn_format,
         )
 
-        return project.urls
+        return locator.urls
 
     async def _cache_urls(self, urls: list[str]) -> None:
         tasks: list[asyncio.Task] = []
@@ -273,6 +273,18 @@ class Project:
             raise KeyError(f"Missing columns in counts file: {missing}")
         return df.select(keep)
 
+    # XXX: locator should handle this
+    def _valid_metadata_url(self, url: str, project_id: str) -> bool:
+        if project_id not in url:
+            return False
+        if self.dbase not in url:
+            return False
+        if Dtype.METADATA.value not in url:
+            return False
+        if self.dbase in {"gtex", "tcga"} and "pred" in url:
+            return False
+        return True
+
 
 class Metadata:
     def __init__(
@@ -442,7 +454,7 @@ class MetadataLoader:
             dfs_for_project: list[pl.DataFrame] = []
 
             for url in self._urls():
-                if project_id not in url:
+                if not self.project._valid_metadata_url(url, project_id):
                     continue
 
                 fpath = urlparse(url).path.lstrip("/")

@@ -265,7 +265,7 @@ async def test_project_gene_accessor(
             "gtex",
             ["FALLOPIAN_TUBE"],
             Annotation.GENCODE_V29,
-            (9, 1),
+            (9, 3),
         ),
         ("human", "tcga", ["CHOL"], Annotation.GENCODE_V29, (45, 3)),
         ("mouse", "sra", ["SRP111354"], Annotation.GENCODE_V23, (15, 3)),
