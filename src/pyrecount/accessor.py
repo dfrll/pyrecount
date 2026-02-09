@@ -177,9 +177,7 @@ class Project:
             case Dtype.JXN:
                 return self._jxn_load()
             case Dtype.GENE:
-                annotation, counts = self._gene_load()
-                target_size = 4e7
-                return annotation, self._scale_auc(counts, target_size)
+                return self._gene_load()
             case Dtype.EXON:
                 return self._exon_load()
             case Dtype.BW:
