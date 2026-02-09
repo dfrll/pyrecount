@@ -47,7 +47,9 @@ class Project:
 
     project_ids: List[str] = field(init=False)
     sample: List[str] = field(init=False)
-    endpoints: "EndpointConnector" = field(init=False)
+    endpoints: EndpointConnector = field(init=False)
+
+    _cached_metadata: Optional[pl.DataFrame] = field(init=False, default=None)
 
     def __post_init__(self):
         if not isinstance(self.metadata, pl.DataFrame):
@@ -86,7 +88,6 @@ class Project:
             dtype=dtype,
             annotation=self.annotation,
             project_ids=self.project_ids,
-            # only needed for bigwig
             sample=self.sample,
             jxn_format=self.jxn_format,
         )
@@ -108,13 +109,71 @@ class Project:
                 makedirs(path.dirname(fpath), exist_ok=True)
                 tasks.append(download_url_to_path(url=url, fpath=fpath))
 
+        # launches all tasks, without rate limiting
         if tasks:
             await asyncio.gather(*tasks)
+
+    def scale_mapped_reads(self, counts: pl.DataFrame, target_size: float, L: int):
+        md = self.load_metadata()
+
+        mapped_reads = pl.col("star.all_mapped_reads").cast(pl.Float64)
+        avg_mapped_len = pl.col("star.average_mapped_length").cast(pl.Float64)
+        avg_read_len = pl.col("avg_len").cast(pl.Float64)
+
+        # paired-end detection
+        ratio = (avg_mapped_len / avg_read_len).round(0)
+        paired_end = ratio == 2
+        paired_factor = pl.when(paired_end).then(2).otherwise(1)
+
+        # scale factors
+        sf = md.select(
+            [
+                pl.col("external_id"),
+                (
+                    target_size * L * paired_factor / (mapped_reads * avg_mapped_len**2)
+                ).alias("sf"),
+            ]
+        )
+
+        sf_map = dict(zip(sf["external_id"], sf["sf"]))
+
+        return counts.with_columns(
+            [
+                (pl.col(c) * sf_map[c])
+                for c in counts.select(pl.selectors.numeric()).columns
+            ]
+        )
+
+    def scale_auc(self, counts: pl.DataFrame, target_size: float) -> pl.DataFrame:
+        md = self.load_metadata()
+
+        auc = pl.col("bc_auc.all_reads_all_bases").cast(pl.Float64)
+
+        # scale factors
+        sf = md.select(
+            "external_id",
+            (target_size / auc).alias("sf"),
+        )
+
+        sf_map = dict(zip(sf["external_id"], sf["sf"]))
+
+        return counts.with_columns(
+            [
+                pl.col(c).mul(sf_map[c]).round(0).cast(pl.Int64).alias(c)
+                for c in counts.columns
+                if c != "gene_id"
+            ]
+        )
+
+    def load_metadata(self) -> pl.DataFrame:
+        if self._cached_metadata is None:
+            self._cached_metadata = self._metadata_load()
+        return self._cached_metadata
 
     def load(self, dtype) -> Union[pl.DataFrame, Tuple[pl.DataFrame, pl.DataFrame]]:
         match dtype:
             case Dtype.METADATA:
-                return self._metadata_load()
+                return self.load_metadata()
             case Dtype.JXN:
                 return self._jxn_load()
             case Dtype.GENE:
@@ -315,9 +374,11 @@ class Project:
             [
                 annotation_dataframe["attribute"]
                 .map_elements(
-                    lambda x: re.findall(rf'{field} "([^"]*)"', x)[0]
-                    if rf'{field} "' in x
-                    else "",
+                    lambda x: (
+                        re.findall(rf'{field} "([^"]*)"', x)[0]
+                        if rf'{field} "' in x
+                        else ""
+                    ),
                     return_dtype=pl.Utf8,
                 )
                 .alias(field)
@@ -366,7 +427,6 @@ class Project:
                     annotation = self._gtf_read(fpath)
                 if url.endswith(f"{self.annotation.value}.gz"):
                     counts = self._counts_read(fpath)
-                    # TODO: extract first column (chromosome|start_1base|end_1ba…)
                     exon_colname = counts.columns[0]
                     exon_fields = ["chrom", "start", "end", "strand"]
                     counts = (

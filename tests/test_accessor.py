@@ -5,7 +5,6 @@ import polars as pl
 from pyrecount.accessor import Metadata, Project
 from pyrecount.models import Dtype, Annotation
 
-# TODO: transform raw counts
 # TODO: jxn dataframe headers, external_id not rail id
 # TODO: multi-project support for exon, gene dtypes
 # TODO: expand sra attributes
@@ -241,20 +240,20 @@ async def test_project_gene_accessor(
         (pl.col("project").is_in(project_ids))
     )
 
-    dtype = Dtype.GENE
+    dtype = [Dtype.METADATA, Dtype.GENE]
 
     gene = Project(
         metadata=project_meta_dataframe,
         dbase=dbase,
         organism=organism,
-        dtype=[dtype],
+        dtype=dtype,
         annotation=annotation,
         jxn_format=None,
         root_url=root_url,
     )
 
     await gene.cache()
-    gene_annotation, gene_counts = gene.load(dtype)
+    gene_annotation, gene_counts = gene.load(Dtype.GENE)
 
     assert gene_annotation.shape == expected_annotation_shape
     assert gene_counts.shape == expected_counts_shape
