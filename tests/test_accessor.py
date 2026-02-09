@@ -49,18 +49,17 @@ async def test_multi_project_metadata_accessor(
 
     dtype = Dtype.METADATA
 
-    project = Project(
+    proj = Project(
         metadata=project_meta_dataframe,
         dbase=dbase,
         organism=organism,
-        dtype=[dtype],
         annotation=None,
         jxn_format=None,
         root_url=root_url,
     )
 
-    await project.cache()
-    project_dataframe = project.load(dtype)
+    await proj.cache(dtype)
+    project_dataframe = proj.load(dtype)
 
     assert project_dataframe.shape == expected_shape
 
@@ -97,18 +96,17 @@ async def test_multi_project_jxn_accessor(
 
     dtype = Dtype.JXN
 
-    jxn = Project(
+    proj = Project(
         metadata=project_meta_dataframe,
         dbase=dbase,
         organism=organism,
-        dtype=[dtype],
         annotation=None,
         jxn_format="all",
         root_url=root_url,
     )
 
-    await jxn.cache()
-    jxn_mm_dataframe, jxn_dataframe = jxn.load(dtype)
+    await proj.cache(dtype)
+    jxn_mm_dataframe, jxn_dataframe = proj.load(dtype)
 
     assert jxn_mm_dataframe.shape == expected_mm_shape
     assert jxn_dataframe.shape == expected_shape
@@ -173,18 +171,17 @@ async def test_project_exon_accessor(
 
     dtype = Dtype.EXON
 
-    exon = Project(
+    proj = Project(
         metadata=project_meta_dataframe,
         dbase=dbase,
         organism=organism,
-        dtype=[dtype],
         annotation=annotation,
         jxn_format=None,
         root_url=root_url,
     )
 
-    await exon.cache()
-    exon_annotation, exon_counts = exon.load(dtype)
+    await proj.cache(dtype)
+    exon_annotation, exon_counts = proj.load(dtype)
 
     assert exon_annotation.shape == expected_annotation_shape
     assert exon_counts.shape == expected_counts_shape
@@ -240,41 +237,41 @@ async def test_project_gene_accessor(
         (pl.col("project").is_in(project_ids))
     )
 
-    dtype = [Dtype.METADATA, Dtype.GENE]
+    dtype = Dtype.GENE
 
-    gene = Project(
+    proj = Project(
         metadata=project_meta_dataframe,
         dbase=dbase,
         organism=organism,
-        dtype=dtype,
         annotation=annotation,
         jxn_format=None,
         root_url=root_url,
     )
 
-    await gene.cache()
-    gene_annotation, gene_counts = gene.load(Dtype.GENE)
+    await proj.cache(dtype)
+    gene_annotation, gene_counts = proj.load(dtype)
 
     assert gene_annotation.shape == expected_annotation_shape
     assert gene_counts.shape == expected_counts_shape
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "organism, dbase, project_ids, annotation, expected_shape",
     [
-        ("human", "sra", ["SRP009615"], Annotation.GENCODE_V29, (12, 1)),
+        ("human", "sra", ["SRP009615"], Annotation.GENCODE_V29, (12, 3)),
         (
             "human",
             "gtex",
             ["FALLOPIAN_TUBE"],
             Annotation.GENCODE_V29,
-            (9, 1),
+            (9, 3),
         ),
-        ("human", "tcga", ["CHOL"], Annotation.GENCODE_V29, (45, 1)),
-        ("mouse", "sra", ["SRP111354"], Annotation.GENCODE_V23, (15, 1)),
+        ("human", "tcga", ["CHOL"], Annotation.GENCODE_V29, (45, 3)),
+        ("mouse", "sra", ["SRP111354"], Annotation.GENCODE_V23, (15, 3)),
     ],
 )
-def test_project_bigwig_accessor(
+async def test_project_bigwig_accessor(
     organism, dbase, project_ids, annotation, expected_shape
 ):
     root_url = "http://duffel.rail.bio/recount3"
@@ -289,16 +286,17 @@ def test_project_bigwig_accessor(
     )
 
     dtype = Dtype.BW
-    bw = Project(
+
+    proj = Project(
         metadata=project_meta_dataframe,
         dbase=dbase,
         organism=organism,
-        dtype=[dtype],
         annotation=None,
         jxn_format=None,
         root_url=root_url,
     )
 
-    bw = bw.load(dtype)
+    await proj.cache(dtype)
+    bw = proj.load(dtype)
 
     assert bw.shape == expected_shape
