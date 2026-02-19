@@ -52,10 +52,10 @@ project_meta_dataframe = recount_meta_dataframe.filter(
     pl.col("project").is_in(["SRP009615"])
 )
 
+# project metadata
 print(project_meta_dataframe)
 
-
-# project metadata
+dtypes = [Dtype.METADATA, Dtype.JXN, Dtype.GENE, Dtype.EXON, Dtype.BW]
 annotation = Annotation.GENCODE_V29
 
 project = Project(
@@ -65,8 +65,6 @@ project = Project(
     jxn_format="all",
     annotation=annotation,
 )
-
-dtypes = [Dtype.METADATA, Dtype.JXN, Dtype.GENE, Dtype.EXON, Dtype.BW]
 
 asyncio.run(project.cache(dtypes))
 
@@ -118,5 +116,6 @@ project_. doi:10.18129/B9.bioc.recount3
 <https://doi.org/10.18129/B9.bioc.recount3>,
 https://github.com/LieberInstitute/recount3 - R package version
 1.16.0, <http://www.bioconductor.org/packages/recount3>.
+
 
 
