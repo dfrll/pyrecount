@@ -255,7 +255,9 @@ class Project:
             ]
         )
 
-    def _counts_read(self, rname: str):
+    def _counts_read(
+        self, rname: str, samples: list[str] | None = None
+    ) -> pl.DataFrame:
         df = pl.read_csv(
             rname,
             comment_prefix="#",
@@ -264,10 +266,12 @@ class Project:
 
         first_col = df.columns[0]
 
-        if not self.sample:
+        sample_ids = samples if samples is not None else self.sample
+
+        if not sample_ids:
             return df
 
-        keep = [first_col] + self.sample
+        keep = [first_col] + sample_ids
         missing = set(keep) - set(df.columns)
         if missing:
             raise KeyError(f"Missing columns in counts file: {missing}")
@@ -352,21 +356,36 @@ class GeneLoader:
 
     def load(self) -> tuple[pl.DataFrame, pl.DataFrame]:
         annotation: pl.DataFrame | None = None
-        counts: pl.DataFrame | None = None
+        all_counts: pl.DataFrame = list()
 
+        # load shared annotation first
         for url in self._urls():
             fpath = urlparse(url).path.lstrip("/")
-
             if self.project.annotation.value in fpath:
                 if any(fpath.endswith(ext) for ext in Extensions.GENE.value):
                     annotation = self.project._gtf_read(fpath)
-                elif fpath.endswith(f"{self.project.annotation.value}.gz"):
-                    counts = self.project._counts_read(fpath)
+                    break
 
-        if annotation is None or counts is None:
+        # load per-project counts
+        for project_id in self.project.project_ids:
+            project_urls = [u for u in self._urls() if project_id in u]
+            project_samples = (
+                self.project.metadata.filter(pl.col("project") == project_id)[
+                    "external_id"
+                ]
+                .unique()
+                .to_list()
+            )
+
+            for url in project_urls:
+                fpath = urlparse(url).path.lstrip("/")
+                if fpath.endswith(f"{self.project.annotation.value}.gz"):
+                    all_counts.append(self.project._counts_read(fpath, project_samples))
+
+        if annotation is None or not all_counts:
             raise RuntimeError("Missing gene annotation or counts file")
 
-        return annotation, counts
+        return annotation, pl.concat(all_counts, how="align")
 
 
 class JunctionLoader:

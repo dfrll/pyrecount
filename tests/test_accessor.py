@@ -6,7 +6,7 @@ from pyrecount.accessor import Metadata, Project
 from pyrecount.models import Dtype, Annotation
 
 # TODO: jxn dataframe headers, external_id not rail id
-# TODO: multi-project support for exon, gene dtypes
+# TODO: multi-project support for exon dtype
 # TODO: expand sra attributes
 # TODO: expose Lazyframes
 
@@ -110,6 +110,57 @@ async def test_multi_project_jxn_accessor(
 
     assert jxn_mm_dataframe.shape == expected_mm_shape
     assert jxn_dataframe.shape == expected_shape
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "organism, dbase, project_ids, annotation, expected_annotation_shape, expected_counts_shape",
+    [
+        (
+            "human",
+            "sra",
+            ["SRP009615", "SRP075759"],
+            Annotation.GENCODE_V29,
+            (64836, 21),
+            (64837, 44),
+        ),
+    ],
+)
+async def test_multi_project_gene_accessor(
+    organism,
+    dbase,
+    project_ids,
+    annotation,
+    expected_annotation_shape,
+    expected_counts_shape,
+):
+    root_url = "http://duffel.rail.bio/recount3"
+    recount_metadata = Metadata(organism=organism, root_url=root_url)
+
+    recount_metadata.cache()
+
+    recount_meta_dataframe = recount_metadata.load()
+
+    project_meta_dataframe = recount_meta_dataframe.filter(
+        pl.col("project").is_in(project_ids)
+    )
+
+    dtype = Dtype.GENE
+
+    proj = Project(
+        metadata=project_meta_dataframe,
+        dbase=dbase,
+        organism=organism,
+        annotation=annotation,
+        jxn_format=None,
+        root_url=root_url,
+    )
+
+    await proj.cache(dtype)
+    gene_annotation, gene_counts = proj.load(dtype)
+
+    assert gene_annotation.shape == expected_annotation_shape
+    assert gene_counts.shape == expected_counts_shape
 
 
 @pytest.mark.asyncio
