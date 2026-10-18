@@ -12,7 +12,7 @@ from pyrecount.models import Dtype, Annotation
 
 
 @pytest.mark.parametrize(
-    "organism, expected_shape", [("human", (359903, 8)), ("mouse", (416859, 8))]
+    "organism, expected_shape", [("human", (372750, 8)), ("mouse", (417966, 8))]
 )
 def test_recount_metadata_accessor(organism, expected_shape):
     root_url = "http://duffel.rail.bio/recount3"
